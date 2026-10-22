@@ -1,0 +1,155 @@
+{
+  "schema_version": 1,
+  "product": "Hum DSP",
+  "review_date": "2026-10-22",
+  "scope": "Frozen development benchmark rerun, not independent validation or human listening",
+  "engine": "Optional same-file profile support and offline whole-file amplitude veto",
+  "experimental_not_default": true,
+  "configuration": {
+    "sample_rate_hz": 48000,
+    "channels": 1,
+    "input_bits_per_sample": 16,
+    "file_duration_seconds": 8,
+    "requested_maximum_depth_db": 12,
+    "selected_orders": "1 through 32",
+    "declared_noise_only_interval_seconds": [0, 2],
+    "profile_assumption_machine_verified": false,
+    "whole_file_future_lookahead": true,
+    "real_time": false
+  },
+  "measurement": {
+    "main_window_seconds": [2, 8],
+    "secondary_window_seconds": [4, 8],
+    "domain": "Floating-point processing and frozen component replay before PCM16 output rounding",
+    "known_components_used_for_metrics_not_runtime_decisions": true,
+    "alignment_or_output_gain_fitting": false,
+    "noise_attenuation_db": "20*log10(input known-noise RMS / output replayed known-noise RMS)",
+    "wanted_level_change_db": "20*log10(output replayed wanted RMS / input wanted RMS)",
+    "wanted_relative_rms_error": "RMS(output replayed wanted minus input wanted) / RMS(input wanted)",
+    "zero_reference_metrics": "null, not a successful zero-error or attenuation claim"
+  },
+  "reproducibility": {
+    "case_count": 9,
+    "render_count": 18,
+    "input_reference_and_output_WAVs_compared_with_previous_run": 36,
+    "all_36_WAV_hashes_identical_to_previous_run": true,
+    "all_case_metric_and_descriptor_data_identical_to_previous_run": true,
+    "source_files_unchanged_during_rerun": true,
+    "all_declared_structural_checks_met": true,
+    "predeclared_development_targets_met": true,
+    "parameters_or_targets_tuned_after_results": false,
+    "maximum_mixture_replay_absolute_error": 0,
+    "maximum_component_additivity_absolute_error": 9.790397659248384e-13,
+    "locked_policy_sha256": "0dfc7ab055da2a128967bfadfd71c2a0c75c45097654754061f3c880eaab4d12",
+    "profile_guard_source_sha256": "d27a6695c0d19816b5d7c34b8bccede29ae08357c3d591a903f1bd2910f6a0eb",
+    "extended_bank_source_sha256": "47f21c2f864308fcbe55a9da54bfcdbd1bd828da165bdfae38270650d31f2a08",
+    "total_study_wall_seconds_one_run": 190.7299676,
+    "wall_time_includes": "Fixture construction, 18 renders, frozen component replay, metrics and evidence output; not single-file engine latency",
+    "timing_benchmark_or_peak_memory_measurement": false
+  },
+  "predeclared_targets": {
+    "wanted_cases": ["selective_50", "selective_60", "strong_overlap_60", "late_strong_overlap_60"],
+    "wanted_windows": ["program_2_to_8_seconds", "post_4_seconds"],
+    "maximum_wanted_relative_rms_error": 0.02,
+    "maximum_absolute_wanted_level_change_db": 0.1,
+    "minimum_selective_noise_attenuation_after_4_seconds_db": 3,
+    "maximum_replay_and_component_additivity_error": 1e-10,
+    "empty_profile_requires_exact_identity": true,
+    "recorded_growing_noise_and_hard_limit_cases": "Report-only; never reclassified as preservation successes"
+  },
+  "program_window_results": [
+    {
+      "case_id": "selective_50",
+      "type": "Owned deterministic synthetic",
+      "baseline_noise_attenuation_db": 10.69115534587883,
+      "profile_guard_noise_attenuation_db": 10.69115534587883,
+      "baseline_wanted_level_change_db": -0.0001808108824485899,
+      "profile_guard_wanted_level_change_db": -0.0001808108824485899,
+      "profile_guard_wanted_relative_rms_error": 0.003656713559784758,
+      "interpretation": "Selected noise reduced; no improvement over baseline in this fixture"
+    },
+    {
+      "case_id": "selective_60",
+      "type": "Owned deterministic synthetic",
+      "baseline_noise_attenuation_db": 10.69042329308694,
+      "profile_guard_noise_attenuation_db": 10.690382197388764,
+      "baseline_wanted_level_change_db": -2.236275518445221,
+      "profile_guard_wanted_level_change_db": -0.00023555682015174995,
+      "profile_guard_wanted_relative_rms_error": 0.005817982597770776,
+      "interpretation": "Profile selection avoids a wanted-tone band while retaining selected noise reduction in this fixture"
+    },
+    {
+      "case_id": "strong_overlap_60",
+      "type": "Owned deterministic synthetic",
+      "baseline_noise_attenuation_db": 10.118253502652284,
+      "profile_guard_noise_attenuation_db": 5.031073844181075,
+      "baseline_wanted_level_change_db": -8.17886350945785,
+      "profile_guard_wanted_level_change_db": -0.00003193889565267227,
+      "profile_guard_wanted_relative_rms_error": 0.0007239182623346287,
+      "interpretation": "Veto preserves strong wanted overlap by leaving more noise untreated"
+    },
+    {
+      "case_id": "late_strong_overlap_60",
+      "type": "Owned deterministic synthetic",
+      "baseline_noise_attenuation_db": 10.118274733893937,
+      "profile_guard_noise_attenuation_db": 5.0311641947365215,
+      "baseline_wanted_level_change_db": -7.2943979495154965,
+      "profile_guard_wanted_level_change_db": -0.00003638661675964272,
+      "profile_guard_wanted_relative_rms_error": 0.0008213165310544995,
+      "interpretation": "Whole-file future lookahead vetoes a band before wanted overlap begins; not causal or real-time protection"
+    },
+    {
+      "case_id": "empty_profile_60",
+      "type": "Owned deterministic synthetic",
+      "profile_guard_noise_attenuation_db": null,
+      "profile_guard_wanted_level_change_db": 0,
+      "profile_guard_output_exact_input": true,
+      "interpretation": "No supported noise bands; exact identity is abstention, not denoising success"
+    },
+    {
+      "case_id": "growing_noise_60",
+      "type": "Owned deterministic synthetic",
+      "baseline_noise_attenuation_db": 10.227235065327571,
+      "profile_guard_noise_attenuation_db": 0,
+      "profile_guard_output_exact_input": true,
+      "interpretation": "Growing noise triggers every supported veto and remains entirely untreated; a removal failure, not a denoising success"
+    },
+    {
+      "case_id": "masked_overlap_limit",
+      "type": "Owned deterministic synthetic hard failure",
+      "profile_guard_noise_attenuation_db": 10.558375174007764,
+      "profile_guard_wanted_level_change_db": -9.69938359867582,
+      "profile_guard_wanted_relative_rms_error": 0.7167118656227361,
+      "interpretation": "Severe wanted loss despite declared profile: same-frequency phase interaction hides added wanted content from the amplitude veto"
+    },
+    {
+      "case_id": "contaminated_profile_limit",
+      "type": "Owned deterministic synthetic hard failure",
+      "profile_guard_noise_attenuation_db": null,
+      "profile_guard_wanted_level_change_db": -10.686794301610316,
+      "profile_guard_wanted_relative_rms_error": 0.7385577098158576,
+      "interpretation": "Severe wanted loss when wanted content is incorrectly declared noise-only; assertion is not machine-verified"
+    },
+    {
+      "case_id": "recorded_profile_then_piano_60",
+      "type": "New construction from previously seen CC0 hum and piano recordings; not independent field data",
+      "baseline_noise_attenuation_db": 1.2728212647646897,
+      "profile_guard_noise_attenuation_db": 1.2728212647646897,
+      "profile_guard_wanted_level_change_db": -0.000776600462000232,
+      "profile_guard_wanted_relative_rms_error": 0.010119724326069753,
+      "interpretation": "Modest total known-noise reduction with no improvement over baseline in this one constructed recording case"
+    }
+  ],
+  "review_conclusion": {
+    "suitable_claim": "Limited offline experimental preview with explicit selection, abstention and wanted-content damage warnings",
+    "general_denoising_accuracy_established": false,
+    "independent_field_effectiveness_established": false,
+    "human_listening_completed": false,
+    "wanted_content_preservation_guaranteed": false,
+    "commercial_quality_approved": false,
+    "audio_played_or_device_IO": false,
+    "raw_private_evidence_or_audio_in_this_summary": false,
+    "raw_evaluation_files_safe_for_unreviewed_publication": false,
+    "warning": "Raw study evidence contains local absolute paths. Publish only reviewed redacted data. The retained-recording study requires separately prepared, licensed inputs; do not advertise it as self-contained without those inputs."
+  }
+}

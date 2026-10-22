@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "milestone": "M5",
+  "status": "scope_and_acceptance_fixed_before_final_scoped_evaluation",
+  "product": "private_local_file_processing_prototype_not_commercial_or_device_realtime_release",
+  "default_mode": "fixed",
+  "supported_modes": ["fixed", "tracked", "guarded"],
+  "input": "mono_uncompressed_48000Hz_PCM16_WAV_more_than_zero_to_60_seconds_max_32MiB",
+  "automatic_format_conversion": false,
+  "engine_changes_allowed": false,
+  "transport": "127.0.0.1_loopback_HTTP_only_per_launch_session_token_no_remote_service",
+  "persistent_upload_storage": false,
+  "manual_browser_playback_available": true,
+  "automated_tests_may_play_or_record": false,
+  "final_scoped_evaluation": {
+    "input": "owned_six_second_synthetic_example_with_selected_50_or_60Hz_tone_and_desired_multitone_content",
+    "nonzero_cases": "three_modes_times_two_nominal_frequencies_12dB_setting",
+    "nonzero_case_count": 6,
+    "actual_CLI_and_local_UI_bridge_WAV_bytes_must_match": true,
+    "nonzero_output_must_change_input": true,
+    "tracked_and_guarded_must_acquire_beyond_two_second_boundary": true,
+    "zero_depth_case_count": 3,
+    "zero_depth_PCM16_identity_all_modes": true,
+    "zero_depth_no_tracking_estimates": true,
+    "frame_counts_and_settings_must_match": true,
+    "temporary_job_files_must_be_removed_after_success_and_failure": true,
+    "malformed_input_must_not_create_success_output": true,
+    "M1_M2_M3_M4_frozen_sources_and_evidence_must_match": true,
+    "independent_real_audio_quality_or_noise_attenuation_claim": false
+  },
+  "browser_checks": [
+    "example_processing_to_result_without_autoplay",
+    "file_selection_processing_and_downloads",
+    "config_change_clears_previous_results",
+    "unsupported_input_shows_actionable_error_and_can_recover",
+    "shared_waveform_axis_and_same_initial_preview_volume",
+    "narrow_viewport_has_no_horizontal_overflow"
+  ],
+  "completion": "five_scoped_development_milestones_complete_only_if_local_tool_and_declared_checks_pass",
+  "remaining_outside_completed_scope": [
+    "real_speech_music_perceptual_quality_evaluation",
+    "independent_real_world_effectiveness",
+    "commercial_distribution_terms_and_platform_support",
+    "microphone_speaker_realtime_processing_or_spatial_ANC"
+  ]
+}

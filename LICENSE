@@ -1,0 +1,40 @@
+Hum DSP Personal Noncommercial Evaluation License, version 1.0
+
+Copyright (c) 2026 Swipsion contributors. All rights reserved except as
+expressly granted below.
+
+1. Permission
+You may download, inspect, run and modify this project's original source code
+and official binary for your own personal, noncommercial evaluation and
+learning. You may keep backup copies for that purpose. No fee is charged for
+this limited permission.
+
+2. Separate permission required
+Commercial use, use in paid services or business operations, commercial
+evaluation on behalf of an organization, and redistribution or republication
+of the original code, modifications or binaries require separate written
+permission from the applicable rights holders. Request permission through the
+repository's issue tracker without publishing confidential information.
+
+3. Hosting-platform rights
+Nothing here restricts the normal viewing and forking rights granted under the
+hosting platform's terms. A platform fork does not by itself grant permission
+for commercial use or other redistribution. Preserve this notice in permitted
+copies and forks.
+
+4. Third-party components and your files
+This license applies only to original Hum DSP materials. Third-party components
+remain governed by their own licenses and notices, which may grant different
+rights. This license does not take ownership of your input files or grant any
+rights in third-party audio. You are responsible for having permission to
+process the files you choose.
+
+5. Experimental software; no warranty
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+NONINFRINGEMENT. IT MAY DAMAGE WANTED AUDIO OR FAIL TO REDUCE NOISE. TO THE
+MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, THE AUTHORS AND RIGHTS HOLDERS
+SHALL NOT BE LIABLE FOR CLAIMS OR DAMAGES ARISING FROM ITS USE. Mandatory
+rights under applicable law are not excluded.
+
+This is a source-available evaluation license, not an open-source license.

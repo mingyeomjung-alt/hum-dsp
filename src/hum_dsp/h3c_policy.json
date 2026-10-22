@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "stage": "H3c_continuous_long_44100Hz_WAV",
+  "status": "contract_fixed_before_full_long44k_evaluation",
+  "input": {
+    "sample_rates_hz": [44100, 48000],
+    "channels": [1, 2],
+    "container": "strict_RIFF_WAVE_PCM16_classic_or_canonical_extensible",
+    "duration_seconds": "greater_than_zero_at_most_600",
+    "maximum_container_bytes": 134217728,
+    "maximum_RIFF_chunks": 4096,
+    "unsupported": ["MP3", "M4A", "PCM24", "float_WAV", "RF64", "more_than_two_channels"]
+  },
+  "conversion": {
+    "runtime": "NumPy_centered_polyphase_FIR_using_unchanged_H3a_kernel",
+    "kernel": "10241_taps_Kaiser_beta5_same_fixed_32_times_half_length",
+    "product_path": "44100_to_48000_then_continuous_DSP_then_44100",
+    "lengths": "forward_ceil_native_frames_times160_div147_backward_explicit_original_frames_at_most_one_final_frame_trim",
+    "time_mapping": "global_output_index_and_source_tap_overlap_across_all_blocks",
+    "lookahead": "defer_centered_outputs_until_future_input_available_true_EOF_zero_extension_only",
+    "no_audio_zero_insertion_or_whole_file_buffer": true,
+    "input_block_frames_maximum": 4096,
+    "output_block_frames_maximum": 4608,
+    "whole_process_memory_or_realtime_guarantee": false,
+    "no_clipping_normalization_gain_fitting_or_posthoc_alignment": true,
+    "FIR_can_change_boundary_high_frequencies_and_peak_levels": true
+  },
+  "file_pipeline": {
+    "first_pass": "bounded_native_stats_hash_forward_conversion_and_engine_domain_RMS_reference_selection",
+    "second_pass": "bounded_forward_conversion_continuous_48k_engine_backward_conversion_and_native_PCM16_writer",
+    "additional_integrity_reads": "bounded_source_code_comparison_and_final_container_hash",
+    "full_float_intermediate_files_required": false,
+    "reference": "first_maximum_full_file_converted_RMS_channel_no_L_plus_R",
+    "channels": "same_decisions_independent_filter_states_no_crossfeed",
+    "trace": "actual_48k_engine_sample_clock_JSONL_not_native44k_sample_clock",
+    "zero_depth": "native_PCM16_exact_identity_no_resampling_engine_or_FFT",
+    "48k_path": "delegate_frozen_H3b_file_processor_without_changing_it",
+    "output": "original_rate_channels_and_frame_count_drop_non_audio_metadata",
+    "fault_handling": "refuse_unrepresentable_output_changed_source_or_invalid_counts_remove_owned_staging_no_successful_fallback"
+  },
+  "local_tool": {
+    "existing_long_mode_extended": true,
+    "file_URL_transport_and_bounds": "unchanged_H3b_binary_upload_small_JSON_and_local_asset_URLs",
+    "example": "unchanged_owned65_second_48k_stereo",
+    "retention": "until_next_accepted_long_request_or_normal_server_close_forced_termination_can_leave_temporary_copies",
+    "microphone_playback_cloud_or_publication": false
+  },
+  "predeclared_evaluation": {
+    "short_44k": "mono_stereo_and_antiphase_compare_native_PCM_against_frozen_H3a",
+    "long_65s": "active44k_stereo_4096_vs480_engine_chunks_exact_PCM_and_continuous_global_clock",
+    "long_125s": "active44k_mono_crosses60_and120_seconds_without_reset",
+    "maximum_600s": "actual44k_mono_zero_depth_exact_native_PCM_no_FIR_or_FFT",
+    "48k_unchanged": "new_dispatch_vs_frozen_H3b_exact_native_PCM",
+    "preserve_33_historical_engine_and_policy_files": true,
+    "accuracy_or_perceptual_quality_verified": false
+  },
+  "remaining": ["additional_input_formats_and_bit_depths", "listening_and_naturally_occurring_hum_validation", "standalone_distribution"],
+  "commercial_release_approved": false
+}

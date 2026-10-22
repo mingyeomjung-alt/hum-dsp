@@ -1,0 +1,85 @@
+{
+  "schema_version": 1,
+  "protocol_id": "hum-dsp-v0.1-m1-20261021",
+  "status": "development_protocol_no_processor_implemented",
+  "input": {
+    "sample_rate_hz": 48000,
+    "channels": 1,
+    "encoding": "PCM16_WAV",
+    "max_duration_seconds": 60,
+    "max_container_bytes": 33554432,
+    "resampling_or_mixing": false
+  },
+  "scope": {
+    "nominal_hum_hz": [50, 60],
+    "manual_target_selection_required": true,
+    "tracking_half_width_hz": 1.0,
+    "max_slew_hz_per_s": 0.05,
+    "max_attenuation_db": 12.0,
+    "harmonics_in_v0_1": false,
+    "unknown_noise_vs_desired_tone_semantics": "not_identifiable_from_one_channel"
+  },
+  "baseline": {
+    "filter": "second_order_finite_depth_notch",
+    "nominal_frequency_selection": "same_as_candidate",
+    "pole_design_bandwidth_hz": 1.0,
+    "attenuation_db": 12.0,
+    "initial_filter_state": "zero",
+    "candidate_changes_allowed": "center_frequency_only_in_M3",
+    "implementation_status": "M2_pending"
+  },
+  "measurement": {
+    "settling_excluded_seconds": 2.0,
+    "startup_report_required": true,
+    "startup_must_not_be_discarded": true,
+    "error_definition": "raw_output_minus_clean_reference",
+    "noise_reference_for_decoded_wav": "decoded_input_minus_decoded_clean",
+    "separate_component_gain": "diagnostic_only_and_only_when_identifiable",
+    "component_fit_condition_number_max": 1000,
+    "component_attenuation_interpretation": "in_phase_projection_only_not_total_noise_reduction",
+    "output_normalization_allowed": false,
+    "fitted_gain_correction_allowed": false,
+    "posthoc_alignment_allowed": false,
+    "declared_algorithm_delay": "must_be_fixed_and_reported_before_evaluation",
+    "undefined_metric_representation": "JSON_null_with_reason",
+    "timing": ["block_processing_time", "acquisition_time", "audio_buffer_delay", "filter_phase_and_group_delay"]
+  },
+  "targets_not_achieved_results": {
+    "stationary_noise_only_reduction_db_min": 10.0,
+    "drifting_noise_only_reduction_db_min": 6.0,
+    "drifting_noise_only_must_beat_same_bandwidth_baseline": true,
+    "frequency_error_hz_max_after_acquisition": 0.3,
+    "initial_acquisition_seconds_max": 2.0,
+    "nonfinite_or_unstable_output_allowed": false,
+    "bypass_samples_changed_allowed": false,
+    "global_gain_reduction_is_success": false,
+    "same_frequency_desired_component_preservation_guaranteed": false
+  },
+  "fixture_policy": {
+    "source": "owned_deterministic_synthetic_math_signals",
+    "role": "development_fixtures_not_independent_validation",
+    "real_speech_or_music": false,
+    "clean_program": "fixed_multitone_amplitude_modulated_signal",
+    "static_duration_seconds": 6.0,
+    "sweep_duration_seconds": 44.0,
+    "sweep_definition": "2s hold; 40s linear sweep over +/-1Hz; 2s hold",
+    "phase_definition": "integral_of_instantaneous_frequency",
+    "pcm16_rounding": "round_to_nearest_ties_to_even_with_positive_endpoint_saturation",
+    "filewise_peak_or_rms_normalization": false,
+    "decoded_sum_quantization_error_bound_lsb": 1.5
+  },
+  "stop_rules": [
+    "No tracking implementation before stable fixed-frequency filtering.",
+    "At most two candidate revisions if tracking does not improve on the frozen baseline.",
+    "Do not claim automatic preservation when desired content overlaps the target frequency.",
+    "Do not expand into broadband suppression, physical ANC or cloud services before M5 closeout."
+  ],
+  "milestones": {
+    "M1": "configuration_fixtures_and_measurement_infrastructure",
+    "M2": "fixed_filter_and_block_state",
+    "M3": "frequency_tracking",
+    "M4": "distortion_and_stability_controls",
+    "M5": "local_run_tool_and_final_evaluation"
+  }
+}
+

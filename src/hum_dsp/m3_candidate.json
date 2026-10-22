@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "candidate_id": "m3_causal_fft_center_tracking_v1",
+  "revision": 1,
+  "status": "parameters_fixed_before_full_fixture_evaluation",
+  "maximum_performance_revisions_if_unsuccessful": 2,
+  "history_samples": 96000,
+  "update_interval_samples": 4800,
+  "window": "Hann",
+  "fft_size": 524288,
+  "frequency_interpolation": "quadratic_log_power_peak",
+  "coherent_power_fraction_min": 0.02,
+  "estimated_peak_amplitude_min": 1e-7,
+  "estimate_edge_tolerance_hz": 0.001,
+  "baseline_filter_sha256": "bc5344e6135d98f2481a0692b1b1d47f7d04c2505cc94b9cc6b4422acecf6458",
+  "baseline_processing_sha256": "11832e54bfea0e1919ce99e5a0b0533becdae128d5321d530ebf7588965e5d03",
+  "confidence_interpretation": "coherent_power_fraction_heuristic_not_probability_or_semantic_noise_detection",
+  "before_initial_acquisition": "same_fixed_nominal_filter_as_M2",
+  "on_ineligible_estimate": "hold_center_do_not_change_filter_depth",
+  "initial_acquisition_jump_allowed": true,
+  "subsequent_center_slew_hz_per_second_max": 0.05,
+  "only_candidate_filter_change": "center_frequency",
+  "pole_design_bandwidth_hz": 1.0,
+  "attenuation_db": 12.0,
+  "frequency_search": "manual_nominal_50_or_60_plus_or_minus_configured_half_width_at_most_1Hz",
+  "explicit_audio_buffer_delay_samples": 0,
+  "estimator_history_and_initial_acquisition_seconds": 2.0,
+  "phase_or_group_delay_claimed_zero": false,
+  "truth_and_clean_references_used_by_engine": false,
+  "evaluation": {
+    "fixtures": "M1_synthetic_development_suite",
+    "baseline": "preserved_M2_same_input_same_depth_same_pole_bandwidth_PCM16_output",
+    "fixed_settling_exclusion_seconds": 2.0,
+    "whole_and_startup_metrics_retained": true,
+    "frequency_error_reference_time": "current_causal_sample_not_window_midpoint",
+    "held_and_unacquired_intervals_count_toward_applied_frequency_error": true,
+    "targets": {
+      "stationary_noise_only_attenuation_db_min": 10.0,
+      "moving_noise_only_attenuation_db_min": 6.0,
+      "moving_noise_only_must_beat_fixed": true,
+      "first_acquisition_seconds_max": 2.0,
+      "estimated_and_applied_frequency_error_hz_max": 0.3
+    }
+  }
+}
+

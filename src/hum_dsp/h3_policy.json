@@ -1,0 +1,59 @@
+{
+  "schema_version": 1,
+  "stage": "H3a_explicit_PCM16_WAV_compatibility",
+  "status": "format_stereo_and_conversion_contract_fixed_before_full_evaluation",
+  "input": {
+    "container": "uncompressed_RIFF_WAVE_PCM16",
+    "sample_rates_hz": [44100, 48000],
+    "channels": [1, 2],
+    "maximum_duration_seconds": 60,
+    "maximum_container_bytes": 33554432,
+    "unsupported": ["MP3", "M4A", "PCM24", "IEEE_float_WAV", "more_than_2_channels", "longer_than_60_seconds"]
+  },
+  "output": {
+    "sample_rate_channels_frame_count": "same_as_input",
+    "encoding": "PCM16_round_to_nearest_ties_to_even_no_saturation",
+    "input_overwrite": false,
+    "non_audio_WAV_chunks": "not_preserved_new_audio_container_is_written",
+    "automatic_gain_normalization": false
+  },
+  "stereo": {
+    "reference_channel": "first_maximum_full_file_RMS_channel_after_48k_conversion",
+    "detection_input_is_L_plus_R": false,
+    "frozen_filter_decisions_shared_between_channels": true,
+    "crossfeed_or_downmix": false,
+    "limitation": "weak_hum_present_only_in_nonreference_channel_can_be_missed_and_shared_filters_can_change_wanted_content_in_either_channel"
+  },
+  "resampling": {
+    "runtime": "own_NumPy_only_polyphase_windowed_sinc_FIR",
+    "up_down": [[160, 147], [147, 160]],
+    "Kaiser_beta": 5.0,
+    "half_filter_length": "32_times_max_up_down",
+    "boundary": "constant_zero_extension",
+    "delay": "fixed_FIR_group_delay_compensated_by_output_index_not_posthoc_alignment",
+    "return_frame_count": "explicit_original_count_default_or_default_minus_one_only",
+    "maximum_output_chunk_frames": 1024,
+    "expanded_upsampled_array": false,
+    "may_change_boundary_samples_high_frequencies_and_peak_levels": true
+  },
+  "bypass": "all_three_depths_zero_skips_FIR_FFT_and_filtering_preserves_native_PCM16_codes",
+  "evaluation_checks": {
+    "owned_cases": "eight_rate_channel_depth_cases_plus_44k_identical_and_antiphase_plus_60s_44k_stereo_bypass_and_60s_48k_mono_nonzero",
+    "public_piano_cases_if_supplied": "native_16_second_44k_stereo_and_same_source_with_injected_mathematical_hum",
+    "default_depths_db": [6, 3, 0],
+    "bypass_depths_db": [0, 0, 0],
+    "native_rate_channel_frame_count_preserved": true,
+    "native_zero_depth_PCM16_exact_identity": true,
+    "48k_mono_matches_preserved_H2_output_bytes": true,
+    "identical_stereo_channels_remain_identical": true,
+    "owned_antiphase_stereo_zero_sum_preserved_and_detects_hum": true,
+    "invalid_input_or_output_refused_before_successful_output": true,
+    "preserved_H1_H2_sources_unchanged": true
+  },
+  "independent_reference_validation": "SciPy resample_poly used only in tests, not runtime",
+  "pre_full_evaluation_design_revision": "Kernel unit tests exposed weak stopband rejection in the initial 10-times design. Before any full H3 file evaluation, half length was fixed to 32-times with 1024-output chunks. Product roundtrip is only 44.1->48->44.1; native48 bypasses conversion. No performance acceptance threshold was relaxed.",
+  "no_new_noise_removal_or_perceptual_accuracy_claim": true,
+  "remaining": ["longer_recordings_and_bounded_streaming", "other_formats_bit_depths_and_explicit_decode_policy", "audible_quality_review", "standalone_distribution"],
+  "device_io": false,
+  "external_publication": false
+}

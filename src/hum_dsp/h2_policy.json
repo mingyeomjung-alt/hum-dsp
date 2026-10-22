@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "stage": "H2_manual_controls_and_real_desired_audio",
+  "status": "settings_and_interpretation_fixed_before_full_evaluation",
+  "sample_rate_hz": 48000,
+  "orders": [1, 2, 3],
+  "settings": {"full": [12, 12, 12], "gentle": [6, 3, 0], "bypass": [0, 0, 0]},
+  "source_ids": ["piano", "phrase", "game"],
+  "source_sha256": {
+    "piano": "9661f81d37c59f230b324b830ab68c0482336af3ec117c92e73108ffb4095f15",
+    "phrase": "7b74aa6d838bd4b2130c6c11b13c845c35255023264eb51263ac47ac93b850fe",
+    "game": "5172cde2a4135f965bd93fde3a12d2e9f76d09c67a85b19b0aaf852580b63704"
+  },
+  "conditions": ["source_only_50", "injected_compound_50", "injected_compound_60"],
+  "injected_hum": {"per_band_RMS": 0.012, "phase_radians": "0.37_times_order", "time_phase": "2*pi*nominal_hz*order*t", "orders": [1, 2, 3]},
+  "measurement": {
+    "startup_end_sample": 96000,
+    "settled_start_sample": 96000,
+    "shorter_than_settled_boundary": "null_with_reason_no_repetition_or_extension",
+    "whole_and_startup_retained": true,
+    "mixture_noise_reference": "decoded_input_minus_decoded_prepared_desired_source",
+    "component_method": "freeze_decisions_from_mixture_replay_known_sources_once_without_refitting",
+    "automatic_gain_normalization_alignment_or_fitting": false
+  },
+  "structural_acceptance": {
+    "H1_all_12_output_byte_equivalence": true,
+    "all_zero_exact_PCM16_identity_without_FFT": true,
+    "frozen_mixture_replay_max_abs_error": 1e-10,
+    "component_additivity_max_abs_error": 1e-10,
+    "original_sources_and_prepared_files_unchanged": true,
+    "depth_3_same_frequency_wanted_RMSE_less_than_depth_12": true,
+    "only_100Hz_wanted_and_second_band_zero_exact_identity": true,
+    "uniform_12_matches_preserved_H1": true
+  },
+  "performance_adoption_rule": "Report every configured noise/damage tradeoff; no real-audio quality pass threshold or adaptive preset selection from these results.",
+  "interpretation_limits": [
+    "Public real desired-audio clips with injected mathematical hum are not naturally noisy recordings with independent clean references.",
+    "Prepared desired reference can contain pre-existing background noise; it is not certified pristine ground truth.",
+    "This is a small development study, not a sealed generalization evaluation or perceptual listening test.",
+    "Same-frequency wanted content is still confusable; OFF/less depth is manual control, not automatic source protection.",
+    "Short audio is never repeated to make the detector activate.",
+    "Evaluation-only conversion does not add input format support to the user product.",
+    "No audio is played, recorded, uploaded, published or used for identification."
+  ]
+}

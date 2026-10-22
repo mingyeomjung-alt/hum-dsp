@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "stage": "H3e_compressed_import_to_Float32_WAV",
+  "status": "contract_fixed_before_full_compressed_evaluation",
+  "input": {
+    "containers": ["MP3_with_MP3_audio", "M4A_MP4_with_AAC_audio"],
+    "sample_rates_hz": [44100, 48000],
+    "channels": [1, 2],
+    "maximum_compressed_bytes": 33554432,
+    "duration_seconds": "greater_than_zero_at_most600_also_subject_to_decoded_container_cap",
+    "one_audio_stream": true,
+    "extension_container_codec_must_agree": true,
+    "unsupported": ["other_codecs_in_M4A", "unsupported_rates", "multichannel", "decoder_rejected_malformed_data", "remote_URLs"],
+    "all_truncated_or_malformed_files_detected_claim": false
+  },
+  "decode": {
+    "optional_dependency": "PyAV_with_FFmpeg",
+    "output": "local_IEEE_Float32_WAV_native44.1_or48kHz_mono_orstereo",
+    "normalization_clipping_dithering_or_PCM16_intermediate": false,
+    "nonfinite_or_out_of_normalized_range_samples": "refuse_without_saturation",
+    "lossy_decode": true,
+    "codec_delay_padding": "backend_handles_valid_container_timestamps_no_preencode_frame_identity_claim",
+    "decoder_and_codec_versions_recorded": true,
+    "original_compressed_source_unchanged": true
+  },
+  "processing": {
+    "DSP": "unchanged_H3d_process_precision_wav_on_decoded_Float32",
+    "output": "processed_Float32_WAV_not_MP3_or_M4A_reencoding",
+    "zero_depth": "exact_decoded_audio_payload_identity_not_compressed_source_identity",
+    "output_framecount": "exactly_decoded_WAV_not_original_preencode_math_signal",
+    "decoded_input_retained": "result_decoded_input.wav",
+    "trace_clock": "unchanged48kHz_engine_clock",
+    "whole_audio_or_trace_retention": false
+  },
+  "fixed_evaluation": {
+    "eight_cases": "MP3_and_M4A_each44100_and48000_eachmono_andstereo_3.4seconds_before_encoding",
+    "each_case": "active6_3_0_and_bypass0_0_0_then_frozen_precision_reference",
+    "owned_source": "bounded_sines_and_hum_math_not_user_recordings",
+    "fixture_encoder": "PyAV_FFmpeg_libmp3lame_or_aac",
+    "same_encoder_decoder_backend_disclosure": true,
+    "independent_decoder_accuracy_claim": false,
+    "reference": "frozen_H3d_precision_output_and_trace_exact_after_decode",
+    "bypass": "decoded_payload_exact",
+    "preencode_vs_decoded_frame_identity_claim": false,
+    "frozen_historical_engine_policy_files": 41,
+    "malformed_wrong_extension_unsupported_rate": "focused_contract_unit_tests_not_positive_grid"
+  },
+  "scope_limits": {
+    "perceptual_quality_or_natural_noise_claim": false,
+    "microphone_playback_or_device_IO": false,
+    "public_upload_or_publication": false,
+    "commercial_release_approved": false,
+    "AAC_patent_or_distribution_rights_clearance_claimed": false
+  }
+}

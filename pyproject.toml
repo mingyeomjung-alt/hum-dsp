@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "swipsion-hum-dsp"
+version = "0.0.14"
+description = "Experimental local selective-hum processor for personal, noncommercial evaluation"
+requires-python = ">=3.12"
+readme = "README.md"
+license = "LicenseRef-HumDSP-Personal-Noncommercial-Evaluation"
+license-files = ["LICENSE"]
+dependencies = ["numpy>=2,<3"]
+
+[project.optional-dependencies]
+compressed = ["av>=19,<20"]
+build = ["pyinstaller==6.22.3"]
+test = ["pytest>=8,<10", "scipy>=1.14,<2"]
+
+[project.scripts]
+hum-dsp = "hum_dsp.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+hum_dsp = ["*.json", "web/*.html", "web/*.css", "web/*.js"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "-ra"
+

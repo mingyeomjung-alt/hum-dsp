@@ -1,0 +1,50 @@
+name: Bug report / evaluation feedback
+description: Report a reproducible problem without sharing private audio or data.
+title: "[Feedback] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Issues are public. Do not upload personal audio, names, tokens, private paths or confidential logs.
+        Use a synthetic reproducer where possible. This project is experimental and personal/noncommercial evaluation only.
+  - type: input
+    id: version
+    attributes:
+      label: Version and installation
+      placeholder: v0.0.14, Windows portable or source install
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Operating system and browser
+      placeholder: Windows 11 x64, browser/version
+    validations:
+      required: true
+  - type: textarea
+    id: settings
+    attributes:
+      label: Input format and settings
+      description: Mode, sample rate, channels, PCM/Float format, duration and filter settings; no filenames or audio required.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior and minimal steps
+      description: Prefer the built-in example or a mathematical synthetic reproducer. Do not paste private paths or tokens.
+    validations:
+      required: true
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Before submitting
+      options:
+        - label: I have not included private recordings, secrets or confidential information.
+          required: true

@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "stage": "H3b_bounded_continuous_long_WAV",
+  "status": "contract_fixed_before_full_long_file_evaluation",
+  "input": {
+    "container": "strict_RIFF_WAVE_PCM16_classic_or_canonical_extensible",
+    "sample_rates_hz": [48000],
+    "channels": [1, 2],
+    "duration_seconds": "greater_than_zero_at_most_600",
+    "maximum_container_bytes": 134217728,
+    "no_implicit_resampling_or_decoding": true,
+    "unsupported": ["44100_Hz_long_files", "MP3", "M4A", "PCM24", "float_WAV", "multichannel_over_2", "RF64"]
+  },
+  "processing": {
+    "offline": true,
+    "first_pass": "bounded_whole_file_RMS_and_hash_fixed_first_maximum_RMS_reference_channel",
+    "second_pass": "continuous_original_reference_observation_ring_and_independent_per_channel_filter_states",
+    "maximum_read_frames": 4096,
+    "maximum_engine_block_frames": 4096,
+    "reference_history_frames": 96000,
+    "observation_interval_frames": 4800,
+    "complete_audio_or_trace_retained_in_RAM": false,
+    "trace": "JSONL_streamed_to_disk_one_initial_event_then_global_observation_events",
+    "whole_process_RSS_memory_limit_claim": false,
+    "no_filter_or_observation_reset_at_60_second_boundaries": true,
+    "all_zero_depths": "skip_engine_and_FFT_preserve_every_PCM16_audio_code",
+    "output": "same_native_rate_channels_frame_count_no_automatic_gain_normalization_or_saturation",
+    "atomic_commit": "fully_staged_result_rename_no_replace_on_current_Windows_target_nonWindows_concurrent_target_creation_not_claimed"
+  },
+  "local_transport": {
+    "input": "binary_upload_streamed_to_temporary_file_in_65536_byte_chunks",
+    "output": "small_JSON_with_random_local_asset_URLs_no_base64_audio",
+    "retention": "one_finished_job_until_next_accepted_long_request_or_server_close",
+    "maximum_published_temporary_job_bytes": 536870912,
+    "upload_deadline_seconds": 60,
+    "asset_transfer_deadline_seconds": 30,
+    "single_byte_range_and_HEAD": true,
+    "cloud_upload_or_external_publication": false,
+    "autoplay_or_microphone_capture": false
+  },
+  "predeclared_evaluation": {
+    "short_parity": "48k_mono_and_linked_stereo_match_frozen_H2_H3a_PCM_codes",
+    "long_chunk_parity": "actual_65_second_stereo_4096_vs_480_frame_engine_chunks_exact_PCM_and_global_event_clocks",
+    "long_active_clock": "actual_125_second_active_mono_no_reset_at_60_or_120_seconds",
+    "maximum_duration_bypass": "actual_600_second_mono_all_zero_exact_PCM_and_no_FFT",
+    "historical_29_engine_files": "hashes_unchanged_from_H3a_record",
+    "no_perceptual_or_natural_noise_accuracy_claim": true
+  },
+  "known_limits": [
+    "wanted_content_in_selected_bands_can_be_attenuated",
+    "fixed_RMS_reference_can_miss_hum_only_in_quieter_channel",
+    "non_audio_WAV_metadata_is_not_preserved",
+    "bounded_DSP_and_IO_buffers_are_not_a_realtime_or_total_process_memory_guarantee",
+    "44k_long_conversion_other_formats_listening_and_standalone_distribution_remain"
+  ]
+}

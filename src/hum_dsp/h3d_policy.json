@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "stage": "H3d_same_format_precision_WAV",
+  "status": "contract_fixed_before_full_precision_evaluation",
+  "input": {
+    "sample_rates_hz": [44100, 48000],
+    "channels": [1, 2],
+    "sample_formats": ["signed_PCM16_little_endian", "signed_PCM24_little_endian", "IEEE_FLOAT32_little_endian"],
+    "duration_seconds": "greater_than_zero_at_most_600",
+    "maximum_container_bytes": 134217728,
+    "duration_and_size": "whichever_limit_is_reached_first_high_bit_depth_stereo_may_reach_size_before600s",
+    "maximum_RIFF_chunks": 4096,
+    "floating_input": "finite_normalized_minus1_inclusive_plus1_exclusive_even_during_zero_depth_bypass",
+    "unsupported": ["PCM8", "PCM32_integer", "Float64", "valid_bits_less_than_container", "RF64", "MP3", "M4A", "more_than_two_channels", "noncanonical_channel_masks"]
+  },
+  "decode_encode": {
+    "PCM24": "packed_three_byte_twos_complement_sign_extend_to_int32_then_float64_divide8388608_no16bit_intermediate",
+    "Float32": "decode_little_endian_IEEE32_to_float64_without_gain_change",
+    "active_output": "same_native_sample_format_and_rate_channels_frame_count",
+    "integer_rounding": "nearest_ties_to_even_refuse_unrepresentable_endpoint_no_saturation",
+    "float_output": "round_to_IEEE_float32_refuse_nonfinite_or_plus1_after_rounding",
+    "dithering_gain_normalization_limiting": false,
+    "zero_depth": "validate_then_copy_original_data_payload_bytes_exactly_including_float_negative_zero_no_FIR_DSP_or_FFT",
+    "non_audio_metadata_chunks": "not_copied",
+    "output_WAV": "classic_PCM16_or_PCM24_fmt16_or_IEEE_FLOAT32_fmt18_cb0_plus_fact_framecount_and_even_chunk_padding",
+    "full_container_byte_identity_claim": false,
+    "header_references": [
+      "https://learn.microsoft.com/en-us/windows/win32/api/mmreg/ns-mmreg-waveformatex",
+      "https://learn.microsoft.com/en-us/windows/win32/api/mmreg/ns-mmreg-waveformatextensible"
+    ]
+  },
+  "processing": {
+    "PCM16": "dynamic_delegate_unchanged_H3c_path",
+    "PCM24_and_Float32": "native_precision_float64_analysis_and_continuous_unchanged_DSP_no_PCM16_audio_intermediate",
+    "44100Hz": "unchanged_H3c_streaming_FIR_to48k_engine_and_back_to_exact_native_framecount",
+    "48000Hz": "no_rate_conversion",
+    "stereo": "fixed_first_maximum_full_file_engine_domain_RMS_reference_same_decisions_independent_channel_filters_no_sum_crossfeed",
+    "maximum_input_and_DSP_block_frames": 4096,
+    "maximum_decode_payload_read_bytes": 32768,
+    "maximum_resampler_return_frames": 4608,
+    "whole_audio_or_trace_retained": false,
+    "whole_process_memory_or_realtime_guarantee": false,
+    "intermediate_and_final_overshoot": "refuse_no_successful_fallback_or_clipping",
+    "trace_clock": "48000Hz_engine_sample_index_not_native44k_index",
+    "commit": "staged_complete_result_before_Windows_atomic_no_replace_directory_rename"
+  },
+  "local_interface": {
+    "new_opt_in_mode": "precision",
+    "old_modes_preserved": true,
+    "example": "owned6second48k_stereo_PCM24_depth_independent_input",
+    "transport": "unchanged_bounded_upload_small_JSON_local_file_capability_URLs_no_base64",
+    "temporary_file_replacement": "new_accepted_long_or_precision_request_or_normal_server_close",
+    "forced_termination": "may_leave_temporary_copies_no_secure_erasure_guarantee",
+    "browser_preview": "native_format_support_browser_dependent_no_hidden16bit_conversion",
+    "autoplay_or_microphone_or_publication": false
+  },
+  "predeclared_evaluation": {
+    "native_format_grid": "PCM24_Float32_each44100_48000_eachmono_stereo_active3.4s_8cases",
+    "quiet_detail": "48k_PCM24_nonzero_sub16LSB_payload_remains_nonzero_with_active_configuration",
+    "raw_bypass": "PCM24_endpoints_and_Float32_signed_zero_payload_identity",
+    "long_partition": "65s44k_PCM24_stereo_4096_vs480_exact_output_payload_and_global_clocks",
+    "maximum_duration": "actual600s48k_Float32_mono_bypass_exact_payload_no_FIR_or_FFT",
+    "PCM16_regression": "48k_and44k_active_PCM_matches_frozen_H3c",
+    "independent_reader": "SciPy_wavfile_test_only_verifies_output_format_and_decoded_values_no_runtime_dependency",
+    "frozen_historical_engine_policy_files": 37,
+    "perceptual_or_natural_noise_accuracy_claim": false
+  },
+  "remaining": ["compressed_audio_decode_policy_and_support", "listening_and_naturally_occurring_hum_validation", "standalone_distribution"],
+  "commercial_release_approved": false
+}
