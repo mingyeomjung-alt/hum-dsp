@@ -41,15 +41,15 @@ def _element(name):
     return found[0]
 
 
-def test_profile_is_opt_in_tenth_mode_after_all_previous_modes():
+def test_profile_and_persistent_candidates_are_opt_in_after_all_previous_modes():
     mode_markup = re.search(r'<select id="mode" name="mode"[^>]*>(.*?)</select>', HTML).group(1)
-    assert re.findall(r'<option value="([^"]+)"', mode_markup) == [
+    assert re.findall(r'<option\b[^>]*\bvalue="([^"]+)"', mode_markup) == [
         "fixed", "tracked", "guarded", "harmonics", "bands", "compatible", "long",
-        "precision", "compressed", "profile",
+        "precision", "compressed", "profile", "persistent",
     ]
-    assert " selected" not in mode_markup
-    assert "v0.0.14" in HTML and "value.version !== '0.0.14'" in SCRIPT
-    assert "실험 · 잡음 구간 기준 대역 보호" in HTML
+    assert re.search(r'<option\b[^>]*\sselected(?:\s|=|>)', mode_markup) is None
+    assert "v0.0.15" in HTML and "value.version !== '0.0.15'" in SCRIPT
+    assert "Experimental · noise-profile band guard" in HTML
     assert "hidden" in _element("profile-options")[1]
     assert "hidden" in _element("profile-result")[1]
 
@@ -67,11 +67,11 @@ def test_profile_interval_and_confirmation_start_empty_and_unasserted():
 
 
 @pytest.mark.parametrize("notice", [
-    "같은 입력 파일 안의 최소 2초", "파일 앞부분을 자동으로 잡음으로 간주하지 않습니다",
-    "잘못 지정하면 원하는 소리도 줄어듭니다", "파일 전체에서 진폭이 기준의 2배",
-    "커진 잡음도 남길 수 있습니다", "이후 구간까지 미리 읽는 오프라인 처리",
-    "같은 크기로 겹친 원하는 소리", "48kHz·모노·PCM16 WAV·최대 60초",
-    "잡음 제거 성공을 뜻하지 않습니다", "profile_trace.json",
+    "at least 2 seconds within the same input file", "the beginning of a file is not automatically treated as noise",
+    "A mistaken declaration can reduce wanted sound", "amplitude exceeds twice the reference anywhere in the file",
+    "Growing noise may also remain", "This offline analysis reads future portions",
+    "Equal-amplitude overlapping wanted sound", "48 kHz mono PCM16 WAV up to 60 seconds",
+    "does not mean noise removal succeeded", "profile_trace.json",
 ])
 def test_experimental_assumptions_and_withholding_limitations_are_visible(notice):
     assert notice in HTML
@@ -155,7 +155,9 @@ const report={config:{nominal_hum_hz:60, max_attenuation_db:6,orders:[1,6,21,24]
         {order:21,approved:false,amplitude_guard_rejected:true,reason:'whole_file_amplitude_exceeds_profile'}]}};
 const fetch = async (url,options={}) => {
  requests.push({url,options});
- if(url==='/api/capabilities') return {ok:true,json:async()=>({schema_version:1,version:'0.0.14',desktop:{available:false,portable_wav_only:true},compressed:{available:false,required_version:'>=19,<20'}})};
+ if(url==='/api/capabilities') return {ok:true,json:async()=>({schema_version:1,version:'0.0.15',desktop:{available:false,portable_wav_only:true},compressed:{available:false,required_version:'>=19,<20'}})};
+ if(scenario.response?.startsWith('server_error_')) return {ok:false,status:Number(scenario.response.split('_').at(-1)),json:async()=>({error:'입력 파일이나 설정을 확인하세요.'})};
+ if(scenario.response==='english_server_error') return {ok:false,status:400,json:async()=>({error:'Example English server diagnostic.'})};
  if(scenario.response==='bad_profile') report.profile_guard.noise_only_interval_machine_verified=true;
  if(scenario.response==='zero_depth') Object.assign(report.profile_guard,{bands:[],approved_orders:[],rejected_orders:[],unsupported_orders:[],processing_bypassed:true,bypass_reason:'zero_depth'});
  const mode = new URL(url,window.location.origin).searchParams.get('mode');
@@ -217,6 +219,39 @@ def test_runtime_default_retains_fixed_mode_and_blank_profile():
     assert _process_requests(result) == []
 
 
+def test_user_interface_is_english_without_changing_report_or_review_schema():
+    assert '<html lang="en">' in HTML
+    for source in (HTML, SCRIPT, (ASSETS / "ab-review.js").read_text(encoding="utf-8")):
+        assert re.search(r"[\u1100-\u11ff\u3130-\u318f\uac00-\ud7a3]", source) is None
+    assert "unverified_self_report" in SCRIPT
+    assert "noise_only_interval_machine_verified !== false" in SCRIPT
+    assert "automatic_quality_pass: false" in SCRIPT
+
+
+@pytest.mark.parametrize("status,instruction", [
+    (400, "Check the file format and settings"),
+    (403, "Reload this local page"),
+    (413, "exceeds the current mode limits"),
+    (503, "may be busy or an optional decoder may be unavailable"),
+    (500, "could not complete the request"),
+])
+def test_untranslated_backend_diagnostics_have_english_recovery_guidance(status, instruction):
+    result = _run(_profile_ready() + [{"click": "example-button"}], response=f"server_error_{status}")
+    error = result["state"]["error"]
+    assert not error["hidden"]
+    assert instruction in error["text"]
+    assert re.search(r"[\uac00-\ud7a3]", error["text"]) is None
+    if status != 403:
+        assert "Experimental" in error["text"] and "noise" in error["text"]
+    assert result["href"] is None
+    assert result["state"]["results"]["hidden"]
+
+
+def test_existing_english_backend_diagnostic_is_preserved():
+    result = _run(_profile_ready() + [{"click": "example-button"}], response="english_server_error")
+    assert result["state"]["error"]["text"] == "Example English server diagnostic."
+
+
 @pytest.mark.parametrize("start,end,orders", [
     ("", "", "all"), ("0", "1.999", "all"), ("2", "0", "all"), ("0", "61", "all"),
     ("NaN", "2", "all"), ("-1", "2", "all"), ("0.00001", "3", "all"),
@@ -250,8 +285,8 @@ def test_runtime_explicit_profile_uses_bounded_route_and_shows_approvals_and_vet
     assert requests[0]["bodyLength"] == 0
     assert not result["state"]["results"]["hidden"]
     assert not result["state"]["profile-result"]["hidden"]
-    assert "진폭 증가로 파일 전체에서 제외" in result["resultText"]
-    assert "음질 보장 아님" in result["resultText"]
+    assert "Withheld for the whole file because amplitude increased" in result["resultText"]
+    assert "no quality guarantee" in result["resultText"]
     assert result["href"].startswith("blob:test-")
     assert result["state"]["profile-start"]["value"] == ""  # Example assertion does not transfer.
     assert not result["state"]["profile-confirm"]["checked"]
@@ -259,8 +294,8 @@ def test_runtime_explicit_profile_uses_bounded_route_and_shows_approvals_and_vet
 
 def test_runtime_zero_depth_is_labeled_unchanged_not_denoising_success():
     result = _run(_profile_ready() + [{"set": "profile-depth", "value": "0"}, {"click": "example-button"}], response="zero_depth")
-    assert "그대로" in result["state"]["profile-result-state"]["text"]
-    assert "0 dB" in result["resultText"] and "원본 그대로" in result["resultText"]
+    assert "Unchanged" in result["state"]["profile-result-state"]["text"]
+    assert "0 dB" in result["resultText"] and "input unchanged" in result["resultText"]
     assert result["href"] is not None
 
 
@@ -294,7 +329,7 @@ def test_runtime_example_interval_helper_cannot_assert_an_uploaded_file():
     actions = [{"file": "my-file.wav"}] + _profile_ready(example_interval=True) + [{"submit": True}]
     result = _run(actions)
     assert _process_requests(result) == []
-    assert "합성 예제" in result["state"]["error"]["text"]
+    assert "synthetic example" in result["state"]["error"]["text"]
     assert not result["state"]["profile-confirm"]["checked"]
 
 
@@ -304,8 +339,8 @@ def test_runtime_user_file_declaration_cannot_transfer_to_synthetic_example():
     actions = [{"file": "my-file.wav"}] + _profile_ready(start="4", end="6") + [{"click": "example-button"}]
     result = _run(actions)
     assert _process_requests(result) == []
-    assert "현재 확인은 내 파일" in result["state"]["error"]["text"]
-    assert "예제용 구간 0~2초" in result["state"]["error"]["text"]
+    assert "Your current confirmation is for your own file" in result["state"]["error"]["text"]
+    assert "0–2 s example interval" in result["state"]["error"]["text"]
     assert not result["state"]["profile-confirm"]["checked"]
     assert result["href"] is None
 

@@ -1,6 +1,6 @@
 # Evaluation scope
 
-Hum DSP v0.0.14 is released for personal, noncommercial **evaluation**, not as
+Hum DSP v0.0.15 is released for personal, noncommercial **evaluation**, not as
 a general-purpose or quality-certified denoiser. Publication permission and
 measured audio quality are separate decisions.
 

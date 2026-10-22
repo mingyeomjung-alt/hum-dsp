@@ -12,8 +12,8 @@ require separate permission. This is source-available, not open source.** See
 
 ### Source: Windows, Linux or macOS with Python 3.12+
 
-Download this repository or the source archive from the
-[v0.0.14 evaluation release](https://github.com/mingyeomjung-alt/hum-dsp/releases/tag/v0.0.14-evaluation.1).
+Download this repository or the source snapshot tagged
+[v0.0.15-evaluation.1](https://github.com/mingyeomjung-alt/hum-dsp/tree/v0.0.15-evaluation.1).
 Extract it and open a terminal in its directory. On Windows PowerShell:
 
 ```powershell
@@ -31,11 +31,9 @@ python3 -m venv .venv
 ```
 
 These commands invoke the environment directly; activation is not required.
-The launcher
-prints a local address and opens your browser. Keep the terminal open and press
-Ctrl+C there to stop. Installation downloads dependencies; audio processing
-itself is local. The interface is currently **Korean**; the English field guide
-below explains the main controls.
+The launcher prints a local address and opens your browser. Keep the terminal
+open and press Ctrl+C there to stop. Installation downloads dependencies; audio
+processing itself is local. The interface and this guide are in English.
 
 ### Windows portable build: not published yet
 
@@ -50,14 +48,14 @@ Do not disable operating-system protections to run an unverified binary.
 
 1. Leave the first processing mode selected: fixed filter.
 2. Choose **50 Hz** or **60 Hz**.
-3. Press **파일 없이 합성 예제 실행** (run synthetic example without a file). The built-in signal is generated
+3. Press **Run synthetic example**. The built-in signal is generated
    mathematically; no downloaded recording is required.
-4. Use the two players manually: **A 원본** is original, **B 처리본** is processed.
+4. Use the two players manually: **A Original** and **B Processed**.
    Start at a low listening volume. Playback never starts automatically.
-5. Save **처리 WAV 저장** (processed WAV) or **보고서 포함 ZIP 저장** (results ZIP).
+5. Save **Processed WAV** or **ZIP with report**.
 
-For your own file, use **WAV 파일 선택** (choose WAV) or drag it into the file
-box, then press **선택한 파일 처리** (process selected file). Keep a separate copy of the original.
+For your own file, use **Choose audio file** or drag it into the file box, then
+press **Process selected file**. Keep a separate copy of the original.
 
 <details>
 <summary>Preview the local interface (Korean)</summary>
@@ -74,6 +72,7 @@ box, then press **선택한 파일 처리** (process selected file). Keep a sepa
 | General WAV | 44.1/48 kHz, mono/stereo PCM16, up to 60 s |
 | Long WAV | 44.1/48 kHz, mono/stereo PCM16, up to 600 s **and** 128 MiB |
 | High-resolution WAV | 44.1/48 kHz, mono/stereo PCM16/PCM24/Float32, up to 600 s **and** 128 MiB |
+| Persistent hum · offline | 44.1/48 kHz, mono/stereo PCM16/PCM24/Float32, up to 60 s **and** 128 MiB; requires at least four stable harmonics |
 | Experimental profile protection | 48 kHz, mono, PCM16 WAV, up to 60 s; explicit same-file noise-only interval of at least 2 s |
 
 The selected mode's visible limit is authoritative. Float32 must contain finite
@@ -91,10 +90,23 @@ codec and decoder-availability contracts. Codec binary distribution/patent right
 this repository does not distribute those binaries. See
 [third-party notes](docs/THIRD_PARTY.md).
 
+## Persistent hum · offline
+
+This opt-in mode looks for a persistent 50/60 Hz harmonic family and applies a
+frozen whole-file spectral mask only when at least four stable harmonic orders
+support the selected family. It exposes the accepted orders—or an unchanged
+abstention—in the report. The default mode remains the fixed filter.
+
+This mode can reduce higher steady buzz harmonics that the simpler path leaves
+behind, but wanted musical or mechanical tones at the same frequencies can also
+be damaged. It is offline, holds the full FFT workspace in memory, and is not a
+real-time noise canceller. See the algorithm, controlled measurements, and the
+intentional severe collision failure in [persistent-hum notes](docs/persistent-hum.md).
+
 ## Experimental profile protection
 
 This is an optional offline guard, **not automatic source separation**. Select
-the last mode, **실험 · 잡음 구간 기준 대역 보호**, enter the start/end seconds
+**Experimental · protect bands using a noise-only interval**, enter the start/end seconds
 of a noise-only interval in the **same input file**, and explicitly confirm
 that it contains no wanted audio. The tool does not assume the first 2 s are
 noise and cannot verify your assertion.

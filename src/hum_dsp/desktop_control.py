@@ -22,6 +22,11 @@ def capabilities(server):
             "desktop": {"available": getattr(server, "desktop_shutdown_event", None) is not None,
                         "portable_wav_only": portable},
             "compressed": compressed,
+            "persistent": {"available": bool(getattr(server, "persistent_processing_available", False)),
+                           "explicit_opt_in": True, "maximum_seconds": 60,
+                           "maximum_container_bytes": 128 * 1024 * 1024,
+                           "whole_file_memory_processing": True,
+                           "quality_approval": False},
             "device_capture_or_autoplay": False, "remote_upload": False}
 
 

@@ -42,15 +42,15 @@ def test_ninth_mode_preserves_previous_eight_modes_and_fixed_default():
         "precision", "compressed", "profile",
     ]
     assert options[8] == ("compressed", "MP3·M4A → WAV")
-    assert options[9][1].startswith("실험")
-    assert " selected" not in modes
-    assert options[0][1] == "고정 필터 · 일정한 잡음"
+    assert options[9][1].startswith("Experimental")
+    assert re.search(r'<option\b[^>]*\sselected(?:\s|=|>)', modes) is None
+    assert options[0][1] == "Fixed filter · steady hum"
 
 
 def test_version_and_default_file_contract_remain_wav():
-    assert "v0.0.14" in HTML
+    assert "v0.0.15" in HTML
     assert _with_id("audio-file")[0][1]["accept"] == ".wav,audio/wav,audio/x-wav"
-    assert 'id="file-type-label">WAV 파일 선택' in HTML
+    assert 'id="file-type-label">Choose a WAV file' in HTML
     assert 'id="compressed-notice" class="compressed-notice" hidden' in HTML
 
 
@@ -64,50 +64,54 @@ def test_all_html_ids_are_unique_and_dynamic_caption_targets_exist():
 
 
 @pytest.mark.parametrize("disclosure", [
-    "MP3·M4A 파일은 최대 32MiB", "디코딩된 오디오는 44.1/48kHz·모노/스테레오",
-    "M4A는 AAC만 지원", "ALAC·여러 트랙·앨범 아트", "Float32 WAV",
-    "16비트로 낮추거나 MP3·M4A로 다시 인코딩하지 않습니다",
-    "A는 압축 파일 자체가 아닌 디코딩 원본 WAV",
-    "압축 파일 바이트 보존이나 압축 전 원음 복원을 뜻하지 않으며",
-    "자동 설치하거나 외부 변환 서버로 보내지 않습니다",
-    "코덱에 따른 피크 초과나 처리 후 범위 초과는 거절",
-    "Float32 WAV 재생은 브라우저 지원에 따라 다릅니다",
+    "MP3/M4A files must be at most 32 MiB", "Decoded audio must be 44.1/48 kHz mono or stereo",
+    "M4A supports AAC only", "ALAC, multiple tracks, album artwork", "Float32 WAV",
+    "not reduced to 16-bit or re-encoded as MP3/M4A",
+    "A is the decoded input WAV, not the compressed file itself",
+    "does not preserve the compressed file bytes or restore the pre-compression signal",
+    "nothing is installed automatically or sent to an external conversion service",
+    "Codec overshoots and post-processing range violations are rejected",
+    "Float32 WAV playback depends on browser support",
 ])
 def test_compressed_scope_is_disclosed_without_audio_improvement_claim(disclosure):
     notice = re.search(r'<div id="compressed-notice".*?</div>', HTML).group(0)
     assert disclosure in notice
-    assert "음질 개선은 보장하지 않습니다" in notice
+    assert "improved audio quality are not guaranteed" in notice
 
 
 def test_long_precision_and_compressed_share_expiring_result_copy():
-    assert "mode === 'long' || mode === 'precision' || mode === 'compressed'" in SCRIPT
+    assert "mode === 'long' || mode === 'precision' || mode === 'compressed' || mode === 'persistent'" in SCRIPT
     assert "mode === 'compressed' ? 32 : (usesStoredFiles(mode) ? 128 : 32)" in SCRIPT
-    assert "새 긴 WAV·고해상도 WAV·MP3/M4A 작업 시작" in HTML
-    assert "새 긴 WAV·고해상도 WAV·MP3/M4A 작업이나 처리기 정상 종료" in SCRIPT
-    assert "강제 종료·전원 중단 시 임시 사본이 남을 수" in HTML
-    assert "보안 삭제를 보장하지 않습니다" in HTML
+    assert "a new Long WAV, High-resolution WAV or MP3/M4A job starts" in HTML
+    assert "starting another stored-file job (Long WAV, High-resolution WAV, MP3/M4A or Persistent hum), or before a normal processor shutdown" in SCRIPT
+    assert "Temporary copies may remain after forced termination or power loss" in HTML
+    assert "Secure erasure is not guaranteed" in HTML
 
 
 def test_file_selection_updates_extensions_labels_and_keeps_wav_default():
     assert "$('audio-file').accept = mode === 'compressed' ? '.mp3,.m4a,audio/mpeg,audio/mp4,audio/x-m4a' : '.wav,audio/wav,audio/x-wav'" in SCRIPT
-    assert "$('file-type-label').textContent = mode === 'compressed' ? 'MP3·M4A 파일 선택' : 'WAV 파일 선택'" in SCRIPT
+    assert "$('file-type-label').textContent = mode === 'compressed' ? 'Choose an MP3/M4A file' : 'Choose a WAV file'" in SCRIPT
     assert "$('compressed-notice').hidden = mode !== 'compressed'" in SCRIPT
     assert "if (mode === 'compressed')" in SCRIPT
     assert r"/\.(mp3|m4a)$/i.test(file.name)" in SCRIPT
     assert "file.size > 0 && file.size <= fileLimitMiB(mode) * 1024 * 1024" in SCRIPT
-    assert "if (id === 'mode' && selectedFile)" in SCRIPT
-    assert "validateFile(selectedFile, $('mode').value)" in SCRIPT
+    # Retain a selected file for explicit mode guidance rather than discarding
+    # it merely because the current mode has a lower size/format limit.
+    assert "updateFilePreflight();" in SCRIPT
+    assert "HumPreflight.assess(fileMetadata,$('mode').value,{compressedAvailable,persistentAvailable})" in SCRIPT
+    assert "if (id === 'mode' && selectedFile)" not in SCRIPT
+    assert "validateFile(selectedFile,$('mode').value)" in SCRIPT
 
 
 def test_new_mode_uses_shared_band_controls_without_changing_6_3_0_defaults():
-    assert "mode === 'bands' || mode === 'compatible' || usesStoredFiles(mode)" in SCRIPT
+    assert "mode === 'bands' || mode === 'compatible' || (usesStoredFiles(mode) && mode !== 'persistent')" in SCRIPT
     for n, value in [(1, 6), (2, 3), (3, 0)]:
         attrs = _with_id(f"band-depth-{n}")[0][1]
         assert (attrs["min"], attrs["max"], attrs["step"], attrs["value"]) == (
             "0", "12", "1", str(value))
     assert "parameters.set('band_depths_db', bandDepths.join(','))" in SCRIPT
-    assert "모두 0 dB이면 디코딩 원본 WAV의 오디오 데이터 값을 유지" in SCRIPT
-    assert "압축 파일 보존·압축 전 원음 복원이 아니며" in SCRIPT
+    assert "With all bands at 0 dB, decoded input WAV sample values are preserved" in SCRIPT
+    assert "does not preserve the compressed file or restore the pre-compression signal" in SCRIPT
 
 
 def test_source_header_is_extension_derived_for_uploads_not_example():
@@ -134,25 +138,25 @@ def test_compressed_result_validates_float32_native_rate_channels_and_frames():
     assert "report.output.sample_format !== 'IEEE_FLOAT32_little_endian'" in SCRIPT
     assert "![44100, 48000].includes(inputRate) || outputRate !== inputRate" in SCRIPT
     assert "outputChannels !== inputChannels || report.output.frames !== report.input.frames" in SCRIPT
-    assert "result.duration_seconds > 600" in SCRIPT
+    assert "result.duration_seconds > (isPersistent ? 60 : 600)" in SCRIPT
     assert "formatSamples(report.input)" in SCRIPT and "formatSamples(report.output)" in SCRIPT
 
 
 def test_compressed_players_and_statistics_are_clearly_decoded_not_compressed_source():
-    assert "$('input-track-title').textContent = isCompressed ? '디코딩 원본' : '원본'" in SCRIPT
-    assert "압축 파일에서 디코딩한 Float32 WAV" in SCRIPT
-    assert "$('output-track-title').textContent = isCompressed ? '처리 WAV' : '처리본'" in SCRIPT
-    assert "$('input-peak-label').textContent = isCompressed ? '디코딩 원본 피크' : '원본 피크'" in SCRIPT
-    assert "디코딩 원본 WAV 수동 재생" in SCRIPT
-    assert "A는 압축 파일 자체가 아닌 디코딩 원본 Float32 WAV이며 B도 Float32 WAV" in SCRIPT
+    assert "$('input-track-title').textContent = isCompressed ? 'Decoded input' : 'Input'" in SCRIPT
+    assert "Float32 WAV decoded from the compressed file" in SCRIPT
+    assert "$('output-track-title').textContent = isCompressed ? 'Processed WAV' : 'Output'" in SCRIPT
+    assert "$('input-peak-label').textContent = isCompressed ? 'Decoded input peak' : 'Input peak'" in SCRIPT
+    assert "Play decoded input WAV manually" in SCRIPT
+    assert "A is the decoded input Float32 WAV, not the compressed file; B is also Float32 WAV" in SCRIPT
 
 
 def test_builtin_mp3_example_and_optional_local_decoder_are_disclosed():
-    assert "6초·48kHz·스테레오 합성음을 로컬에서 MP3로 인코딩·디코딩한 예제" in SCRIPT
-    assert "PyAV 19.x가 없으면 실행되지 않으며 자동 설치하지 않습니다" in SCRIPT
-    assert "PyAV 19.x 디코더가 로컬 환경에 있어야 합니다" in HTML
-    assert "최대 10분과 128MiB 중 먼저 닿는 한도" in HTML
-    assert "디코딩 후 최대 10분 또는 128MiB 중 먼저 닿는 한도" in SCRIPT
+    assert "A 6-second, 48 kHz stereo synthetic signal is locally encoded to MP3 and decoded for this example" in SCRIPT
+    assert "It requires PyAV 19.x, which is not installed automatically" in SCRIPT
+    assert "The local environment must include a PyAV 19.x decoder" in HTML
+    assert "up to 10 minutes or 128 MiB, whichever comes first" in HTML
+    assert "decoded audio is limited to 10 minutes or 128 MiB, whichever comes first" in SCRIPT
     assert "response.ok" in SCRIPT
     assert "typeof result.error === 'string' ? result.error" in SCRIPT
     assert "pip install" not in SCRIPT and "cdn." not in SCRIPT
@@ -160,10 +164,10 @@ def test_builtin_mp3_example_and_optional_local_decoder_are_disclosed():
 
 def test_existing_bounded_wait_offline_and_expiry_behavior_is_preserved():
     assert "isStoredFile ? 900000 : 120000" in SCRIPT
-    assert "로컬 처리기에 연결하지 못했습니다" in SCRIPT
-    assert "서버 처리는 아직 진행 중일 수 있습니다" in SCRIPT
-    assert "완료 후에도 자동 재생하지 않습니다" in SCRIPT
-    assert "설정이 바뀌었습니다. 새 설정으로 다시 처리해 주세요" in SCRIPT
+    assert "Could not connect to the local processor" in SCRIPT
+    assert "Server processing may still be running" in SCRIPT
+    assert "playback does not start automatically when processing finishes" in SCRIPT
+    assert "Settings changed. Process again with the new settings" in SCRIPT
 
 
 def test_no_auto_play_microphone_external_script_or_browser_decoder_added():
@@ -177,13 +181,13 @@ def test_no_auto_play_microphone_external_script_or_browser_decoder_added():
     for tag, attrs in ELEMENTS.elements:
         if tag == "script":
             assert attrs.get("src", "").startswith("/")
-    assert "외부 서버로 파일을 보내지 않습니다" in HTML
+    assert "Files are not sent to external servers" in HTML
 
 
 def test_new_notice_matches_existing_design_and_accessible_disclosures():
     assert ".long-notice,.precision-notice,.compressed-notice" in CSS
     assert ".precision-disclosure,.compressed-disclosure" in CSS
     assert ".file-label b{font-weight:inherit}" in CSS
-    assert '<details class="compressed-disclosure"><summary>디코딩·0 dB·보관 안내</summary>' in HTML
+    assert '<details class="compressed-disclosure"><summary>Decoding, 0 dB and temporary storage</summary>' in HTML
     assert "summary:focus-visible" in CSS
     assert "[hidden]{display:none!important}" in CSS

@@ -368,7 +368,7 @@ class _LocalHandler(BaseHTTPRequestHandler):
                 payload = json.dumps(capabilities(self.server), ensure_ascii=False, allow_nan=False).encode("utf-8")
                 self._send(200, payload, "application/json; charset=utf-8")
                 return
-            assets = {"/": ("index.html", "text/html; charset=utf-8"), "/app.js": ("app.js", "text/javascript; charset=utf-8"), "/style.css": ("style.css", "text/css; charset=utf-8")}
+            assets = {"/": ("index.html", "text/html; charset=utf-8"), "/app.js": ("app.js", "text/javascript; charset=utf-8"), "/ab-review.js": ("ab-review.js", "text/javascript; charset=utf-8"), "/preflight.js": ("preflight.js", "text/javascript; charset=utf-8"), "/style.css": ("style.css", "text/css; charset=utf-8")}
             if parsed.path not in assets:
                 raise _RequestFailure(404, "이 로컬 도구에서 제공하지 않는 주소입니다.")
             filename, content_type = assets[parsed.path]
@@ -391,6 +391,10 @@ class _LocalHandler(BaseHTTPRequestHandler):
                 request_stop(self, parsed)
                 return
             ensure_accepting_jobs(self.server)
+            if parsed.path.startswith("/api/persistent/"):
+                from .persistent_local import process_request
+                process_request(self, parsed)
+                return
             if parsed.path.startswith("/api/compressed/"):
                 if getattr(self.server, "portable_wav_only", False):
                     raise _RequestFailure(415, "이 독립 실행판은 WAV 전용입니다. MP3·M4A 디코더는 포함하지 않았습니다.")
@@ -527,6 +531,9 @@ def make_server(port=0, *, work_root=None):
     server.processing_lock = threading.Lock()
     from .long_local import LongJobStore
     server.long_jobs = LongJobStore(server.work_root)
+    # Set only when this updated server is created. An already-running older
+    # server may serve new static files but must not advertise missing routes.
+    server.persistent_processing_available = True
     return server
 
 

@@ -41,7 +41,7 @@ def _function(name, next_marker):
 
 
 def test_version_and_existing_nine_modes_preserve_fixed_default():
-    assert "v0.0.14" in HTML
+    assert "v0.0.15" in HTML
     modes = [(attrs["value"], attrs) for tag, attrs in ELEMENTS.elements if tag == "option"
              and attrs.get("value") in {"fixed", "tracked", "guarded", "harmonics", "bands",
                                         "compatible", "long", "precision", "compressed"}]
@@ -73,7 +73,7 @@ def test_capability_fetch_uses_same_origin_get_without_token_or_user_input():
 
 
 @pytest.mark.parametrize("contract", [
-    "value.schema_version !== 1", "value.version !== '0.0.14'",
+    "value.schema_version !== 1", "value.version !== '0.0.15'",
     "typeof value.desktop?.available !== 'boolean'",
     "typeof value.desktop?.portable_wav_only !== 'boolean'",
     "typeof value.compressed?.available !== 'boolean'",
@@ -89,11 +89,11 @@ def test_capability_failure_is_closed_only_for_optional_features_not_wav():
     catch = capability.split("} catch {", 1)[1].split("} finally", 1)[0]
     assert "compressedAvailable = false" in catch
     assert "desktopAvailable = false" in catch
-    assert "WAV는 계속 사용할 수 있습니다" in catch
+    assert "WAV processing remains available" in catch
     assert "settings-fields" not in catch
     assert "querySelector('option[value=\"compressed\"]').disabled = !compressedAvailable" in capability
-    assert "이 배포판은 WAV 전용입니다. MP3·M4A 기능은 포함하지 않았습니다." in capability
-    assert "현재 환경에 지원되는 MP3·M4A 디코더가 없습니다" in capability
+    assert "This distribution supports WAV only. MP3/M4A processing is not included." in capability
+    assert "No supported MP3/M4A decoder is available in this environment" in capability
     assert "pip install" not in SCRIPT and "location.reload" not in SCRIPT
 
 
@@ -109,9 +109,9 @@ def test_stop_is_an_explicit_two_step_cancelable_local_action():
     tag, stop = _with_id("desktop-stop")
     assert tag == "button" and stop["type"] == "button"
     assert stop["aria-expanded"] == "false" and stop["aria-controls"] == "desktop-stop-confirm"
-    assert "프로그램 종료" in HTML and "종료 확인" in HTML and "계속 사용" in HTML
-    assert "필요한 결과를 먼저 저장하세요" in HTML
-    assert "원본 파일과 직접 저장한 결과는 삭제하지 않습니다" in HTML
+    assert "Close processor" in HTML and "Confirm shutdown" in HTML and "Keep working" in HTML
+    assert "Save any results you need first" in HTML
+    assert "Your original files and results you saved yourself are not deleted" in HTML
     assert "$('desktop-stop-cancel').focus()" in SCRIPT
     assert "event.key === 'Escape'" in SCRIPT
     assert "window.confirm" not in SCRIPT and "window.close" not in SCRIPT
@@ -135,7 +135,7 @@ def test_busy_processing_disables_stop_and_blocks_both_stop_handlers():
     assert SCRIPT.count("if (interactionLocked() || !desktopAvailable) return") == 2
     run = _function("run", "$('processor-form').addEventListener")
     assert "busy = true;\n    dismissStopConfirmation();\n    updateDesktopControls();" in run
-    assert "busy = false;\n      updateDesktopControls();" in run
+    assert "busy = false;\n      updateSettingsControls();\n      updateDesktopControls();" in run
 
 
 def test_stop_pauses_audio_locks_controls_and_preserves_cleanup_uncertainty():
@@ -146,16 +146,16 @@ def test_stop_pauses_audio_locks_controls_and_preserves_cleanup_uncertainty():
     assert "if (stopping || stopRequested) event.preventDefault()" in action
     assert "result.status !== 'stopping' || result.temporary_cleanup_pending !== true" in action
     assert "stopRequested = true" in action
-    assert "종료를 요청했습니다. 정상 종료 후 임시 사본이 정리됩니다. 이 창을 닫아도 됩니다." in action
-    assert "임시 사본의 정리 완료를 이 화면에서 확인하지는 않습니다" in action
-    assert "정상 종료 여부와 임시 사본의 정리는 확인되지 않았습니다" in action
-    assert "정리가 완료되었습니다" not in action
+    assert "Shutdown requested. Temporary copies are cleaned up after a normal shutdown. You may close this tab." in action
+    assert "This page does not confirm that temporary-copy cleanup has completed" in action
+    assert "A normal shutdown and temporary-copy cleanup have not been confirmed" in action
+    assert "Cleanup is complete" not in action
 
 
 def test_failed_stop_keeps_acknowledgement_uncertain_and_restores_controls():
     action = SCRIPT.split("$('desktop-stop-confirm-button').addEventListener", 1)[1].split("const usesStoredFiles", 1)[0]
     catch = action.split("} catch {", 1)[1].split("} finally", 1)[0]
-    assert "종료 응답을 확인하지 못했습니다" in catch
+    assert "Could not confirm the shutdown response" in catch
     assert "$('settings-fields').disabled = false" in catch
     assert "player.controls = true" in catch
     assert "removeAttribute('aria-disabled')" in catch
@@ -175,8 +175,9 @@ def test_no_capture_playback_installation_external_script_or_network_auto_close(
 
 
 def test_capability_and_shutdown_ui_preserve_existing_accessible_design():
-    assert _with_id("mode")[1]["aria-describedby"] == "mode-help capability-notice"
+    assert _with_id("mode")[1]["aria-describedby"] == "mode-help capability-notice persistent-capability-notice"
     assert _with_id("capability-notice")[1]["role"] == "status"
+    assert _with_id("persistent-capability-notice")[1]["role"] == "status"
     assert _with_id("desktop-stop-status")[1]["aria-live"] == "polite"
     assert _with_id("desktop-stop-confirm")[1]["aria-labelledby"] == "desktop-stop-title"
     assert "[hidden]{display:none!important}" in CSS

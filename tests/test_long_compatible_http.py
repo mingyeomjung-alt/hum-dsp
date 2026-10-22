@@ -193,16 +193,16 @@ def test_long_ui_discloses_conversion_without_changing_old_mode_defaults(server)
     status, _, html = _request(server, "/")
     assert status == 200
     page = html.decode("utf-8")
-    assert "v0.0.14" in page
-    assert '<option value="long">긴 WAV · 최대 10분(44.1·48kHz)</option>' in page
-    assert '<option value="fixed">고정 필터 · 일정한 잡음</option>' in page
-    assert "고정 FIR" in page and "앞뒤 샘플 참조" in page
-    assert "경계·고주파·피크" in page and "모두 0 dB" in page
-    assert "강제 종료·전원 중단" in page and "보안 삭제를 보장하지 않습니다" in page
+    assert "v0.0.15" in page
+    assert '<option value="long">Long WAV · up to 10 minutes (44.1/48 kHz)</option>' in page
+    assert '<option value="fixed">Fixed filter · steady hum</option>' in page
+    assert "fixed FIR" in page and "preceding and following samples" in page
+    assert "boundaries, high frequencies and peaks" in page and "all bands at 0 dB" in page
+    assert "forced termination or power loss" in page and "Secure erasure is not guaranteed" in page
     status, _, javascript = _request(server, "/app.js")
     assert status == 200
     script = javascript.decode("utf-8")
-    assert "긴 WAV 예제는 65초·48kHz·스테레오" in script
-    assert "44.1kHz 변환을 확인하려면 해당 WAV를 직접 선택" in script
-    assert "완료 후에도 자동 재생하지 않습니다" in script
+    assert "The Long WAV example is a 65-second, 48 kHz stereo" in script
+    assert "To test 44.1 kHz resampling, select a matching WAV file" in script
+    assert "playback does not start automatically when processing finishes" in script
     assert "isStoredFile ? 900000 : 120000" in script

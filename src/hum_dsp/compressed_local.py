@@ -79,7 +79,7 @@ def process_request(handler, parsed):
         report["local_tool"] = {
             "schema_version": 1, "mode": "compressed", "transport": "loopback_streamed_files_no_base64",
             "microphone_capture": False, "autoplay": False, "remote_upload": False,
-            "temporary_result_replacement_modes": ["long", "precision", "compressed"],
+            "temporary_result_replacement_modes": ["long", "precision", "compressed", "persistent"],
             "temporary_result_retained_until_next_stored_job_or_server_close": True,
             "temporary_files_removed_before_response": False,
             "comparison_input": "decoded_Float32_WAV_not_compressed_original",

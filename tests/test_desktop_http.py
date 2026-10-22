@@ -48,9 +48,14 @@ def test_capabilities_disclose_normal_python_runtime_without_paths_or_tokens(ser
     status, headers, payload = _request(server, "/api/capabilities")
     assert status == 200
     result = json.loads(payload)
-    assert result["version"] == "0.0.14"
+    assert result["version"] == "0.0.15"
     assert result["desktop"] == {"available": False, "portable_wav_only": False}
     assert result["compressed"]["available"] is True
+    assert result["persistent"] == {
+        "available": True, "explicit_opt_in": True, "maximum_seconds": 60,
+        "maximum_container_bytes": 128 * 1024 * 1024,
+        "whole_file_memory_processing": True, "quality_approval": False,
+    }
     assert result["remote_upload"] is False and result["device_capture_or_autoplay"] is False
     assert server.session_token.encode() not in payload
     assert str(server.work_root).encode() not in payload

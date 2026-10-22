@@ -295,28 +295,28 @@ def test_precision_ui_is_explicit_native_format_mode_without_changing_existing_d
     status, _, page = _request(server, "/")
     assert status == 200
     html = page.decode("utf-8")
-    assert "v0.0.14" in html
-    assert '<option value="fixed">고정 필터 · 일정한 잡음</option>' in html
+    assert "v0.0.15" in html
+    assert '<option value="fixed">Fixed filter · steady hum</option>' in html
     # Count processing modes, not the unrelated optional listening-rating selects.
     mode_select = html.split('<select id="mode"', 1)[1].split('</select>', 1)[0]
     assert mode_select.count('<option value="') == 10  # Nine existing modes plus opt-in profile.
-    assert '<option value="precision">고해상도 WAV · 24비트·Float32</option>' in html
-    assert "최대 10분과 128MiB 중 먼저" in html
-    assert "유한한 −1 이상·+1 미만" in html
-    assert "NaN·무한대·+1" in html
-    assert "디더링·자동 음량 보정은 하지 않습니다" in html
-    assert "원본 WAV의 부가 메타데이터 보존은 보장하지 않습니다" in html
-    assert "새 긴 WAV·고해상도 WAV·MP3/M4A 작업 시작" in html
-    assert "PCM24·Float32 재생은 브라우저 지원에 따라 다릅니다" in html
-    assert "미리듣기용으로 몰래 PCM16 변환하지 않습니다" in html
+    assert '<option value="precision">High-resolution WAV · 24-bit and Float32</option>' in html
+    assert "up to 10 minutes or 128 MiB, whichever comes first" in html
+    assert "finite and in [-1, +1)" in html
+    assert "NaN, infinity, +1" in html
+    assert "no dithering or automatic level normalization is applied" in html
+    assert "Preservation of ancillary WAV metadata is not guaranteed" in html
+    assert "a new Long WAV, High-resolution WAV or MP3/M4A job starts" in html
+    assert "PCM24/Float32 playback depends on browser support" in html
+    assert "No hidden PCM16 conversion is used for preview" in html
     assert 'autoplay' not in html.lower()
     status, _, payload = _request(server, "/app.js")
     assert status == 200
     script = payload.decode("utf-8")
     assert "usesStoredFiles(mode) ? 128 : 32" in script
     assert "isStoredFile ? 900000 : 120000" in script
-    assert "6초·48kHz·스테레오 PCM24이며 Float32·44.1kHz 시험은 아닙니다" in script
+    assert "6-second, 48 kHz stereo PCM24 signal, not a Float32 or 44.1 kHz test" in script
     assert "formatSamples(report.input)" in script and "formatSamples(report.output)" in script
     assert "signed_PCM24_little_endian" in script and "IEEE_FLOAT32_little_endian" in script
     assert "window.location.origin" in script and "!expectedPath.test" in script
-    assert "완료 후에도 자동 재생하지 않습니다" in script
+    assert "playback does not start automatically when processing finishes" in script

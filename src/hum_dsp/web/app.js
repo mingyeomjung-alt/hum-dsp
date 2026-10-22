@@ -3,15 +3,18 @@
   const $ = (id) => document.getElementById(id);
   const token = document.querySelector('meta[name="hum-session-token"]').content;
   const audio = [$('input-audio'), $('output-audio')];
-  const modes = {fixed: '고정 필터', tracked: '제한 추적', guarded: '보호 추적', harmonics: '고조파 처리', bands: '대역별 조절', compatible: '일반 WAV', long: '긴 WAV', precision: '고해상도 WAV', compressed: 'MP3·M4A → WAV', profile: '실험 · 잡음 구간 기준 대역 보호'};
-  const help = {fixed: '선택한 주파수를 고정해서 처리합니다.', tracked: '±1Hz 안에서 최대 0.05Hz/초의 느린 변화를 추적합니다. 최초 관측은 2초입니다.', guarded: '두 번의 추적 확인 후 서서히 적용합니다. 복귀도 지연되며, 초기 감쇠 성능은 낮아질 수 있습니다.', harmonics: '선택한 기본·배수 대역을 각각 관측하고 확인된 대역만 서서히 처리합니다. 실제 고조파 관계나 잡음 여부를 판별하지는 않습니다.', bands: '기본·2배·3배 대역의 감쇠량을 따로 정합니다. 0 dB 대역은 끄며, 원하는 저음 보호는 직접 듣고 조절해야 합니다.', compatible: '44.1·48kHz의 모노·스테레오 PCM16 WAV를 대역별로 처리합니다. 아래 변환 안내를 확인하고 필요한 대역만 직접 조절하세요.', long: '44.1·48kHz의 모노·스테레오 PCM16 WAV를 최대 10분까지 연속 처리합니다. 44.1kHz는 선택한 대역이 있을 때 왕복 FIR 변환하며 실시간 처리는 아닙니다.', precision: 'PCM16·PCM24·Float32의 원본 형식을 유지해 대역별로 처리합니다. 최대 10분·128MiB이며 Float32 입력 범위와 변환 안내를 확인해 주세요.', compressed: 'MP3·AAC M4A를 로컬에서 Float32 WAV로 디코딩한 뒤 대역별로 처리합니다. 압축 파일은 최대 32MiB, 디코딩 후 최대 10분 또는 128MiB 중 먼저 닿는 한도입니다. 출력은 WAV만 제공합니다.'};
-  help.profile = '잡음만 있는 최소 2초를 직접 지정하면, 1~32배 중 확인된 대역에 한해 처리합니다. 이후 소리가 커지면 대역 전체를 보류하는 오프라인 실험 기능입니다.';
+  const modes = {fixed: 'Fixed filter', tracked: 'Limited tracking', guarded: 'Guarded tracking', harmonics: 'Harmonic processing', bands: 'Per-band control', compatible: 'Standard WAV', long: 'Long WAV', precision: 'High-resolution WAV', compressed: 'MP3·M4A → WAV', profile: 'Experimental · noise-profile band guard'};
+  const help = {fixed: 'Applies a fixed filter at the selected frequency.', tracked: 'Tracks slow drift within ±1 Hz, at up to 0.05 Hz/s. Initial observation takes 2 seconds.', guarded: 'Activates gradually after two qualified tracking observations. Release is also delayed, and initial attenuation may be lower.', harmonics: 'Observes each selected fundamental or harmonic band independently and gradually processes qualified bands. It does not determine whether components are true harmonics or noise.', bands: 'Set attenuation independently for the fundamental, second and third orders. A 0 dB band is off; protecting wanted bass requires listening and manual adjustment.', compatible: 'Processes bands in 44.1/48 kHz mono or stereo PCM16 WAV. Read the resampling notes below and manually enable only the bands you need.', long: 'Processes 44.1/48 kHz mono or stereo PCM16 WAV up to 10 minutes. When any band is enabled, 44.1 kHz uses round-trip FIR resampling; this is not real-time processing.', precision: 'Processes selected bands while preserving the original PCM16, PCM24 or Float32 format, up to 10 minutes and 128 MiB. Check the Float32 range and resampling notes.', compressed: 'Locally decodes MP3 or AAC M4A to Float32 WAV, then processes selected bands. Compressed input is limited to 32 MiB; decoded audio is limited to 10 minutes or 128 MiB, whichever comes first. Output is WAV only.'};
+  help.profile = 'Declare at least 2 seconds containing only noise. Only supported bands among orders 1–32 are processed. This offline experiment withholds an entire band if amplitude later grows too large.';
+  modes.persistent = 'Persistent hum · offline';
+  help.persistent = 'Explicitly opt in to whole-file analysis of stable 50/60 Hz harmonic families. At least four consistent persistent harmonic lines are required; insufficient evidence leaves the validated audio payload unchanged.';
   let selectedFile = null;
   let busy = false;
   let urls = [];
   let lastWaveforms = null;
   let lastChannels = 1;
   let compressedAvailable = false;
+  let persistentAvailable = false;
   let desktopAvailable = false;
   let stopping = false;
   let stopRequested = false;
@@ -19,11 +22,19 @@
   let lastReviewContext = null;
   let exampleIntervalOnly = false;
   let profileConfirmedSource = null;
+  let fileCheckSerial = 0;
+  let fileChecking = false;
+  let fileMetadata = null;
+  let fileCheckTimer = null;
+  let capabilitiesKnown = false;
   const interactionLocked = () => busy || stopping || stopRequested;
+  const abReview = window.HumABReview?.create({players: audio, getElement: $, isLocked: interactionLocked});
 
   function updateDesktopControls() {
     $('desktop-controls').hidden = !desktopAvailable;
     $('desktop-stop').disabled = interactionLocked();
+    abReview?.refresh();
+    updateFilePreflight();
   }
 
   function dismissStopConfirmation() {
@@ -39,25 +50,33 @@
         method: 'GET', credentials: 'same-origin', cache: 'no-store', signal: abort.signal
       });
       const value = await response.json();
-      if (!response.ok || value.schema_version !== 1 || value.version !== '0.0.14'
+      if (!response.ok || value.schema_version !== 1 || value.version !== '0.0.15'
         || typeof value.desktop?.available !== 'boolean' || typeof value.desktop?.portable_wav_only !== 'boolean'
         || typeof value.compressed?.available !== 'boolean' || value.compressed.required_version !== '>=19,<20'
         || (value.desktop.portable_wav_only && value.compressed.available)) throw new Error('capabilities');
       compressedAvailable = value.compressed.available;
+      // Older processors do not advertise this candidate. Never infer support
+      // from a successful generic capability response or switch modes for users.
+      persistentAvailable = value.persistent?.available === true;
       desktopAvailable = value.desktop.available;
       const notice = $('capability-notice');
       notice.hidden = compressedAvailable;
       notice.textContent = value.desktop.portable_wav_only
-        ? '이 배포판은 WAV 전용입니다. MP3·M4A 기능은 포함하지 않았습니다.'
-        : '현재 환경에 지원되는 MP3·M4A 디코더가 없습니다. WAV는 계속 사용할 수 있습니다.';
+        ? 'This distribution supports WAV only. MP3/M4A processing is not included.'
+        : 'No supported MP3/M4A decoder is available in this environment. WAV processing remains available.';
     } catch {
       compressedAvailable = false;
+      persistentAvailable = false;
       desktopAvailable = false;
       $('capability-notice').hidden = false;
-      $('capability-notice').textContent = '실행 환경을 확인하지 못했습니다. WAV는 계속 사용할 수 있습니다. MP3·M4A 기능은 비활성화했습니다.';
+      $('capability-notice').textContent = 'Could not verify this environment. WAV processing remains available; MP3/M4A processing is disabled.';
     } finally {
       clearTimeout(timer);
+      capabilitiesKnown = true;
       $('mode').querySelector('option[value="compressed"]').disabled = !compressedAvailable;
+      $('persistent-option').disabled = !persistentAvailable;
+      $('persistent-capability-notice').hidden = persistentAvailable;
+      $('persistent-capability-notice').textContent = 'Persistent hum is disabled because this processor has not confirmed support. Other available WAV modes remain unchanged.';
       updateDesktopControls();
     }
   }
@@ -86,9 +105,10 @@
     updateDesktopControls();
     $('settings-fields').disabled = true;
     for (const player of audio) { player.pause(); player.controls = false; }
+    abReview?.suspend();
     for (const id of ['download-wav', 'download-zip']) $(id).setAttribute('aria-disabled', 'true');
     $('desktop-stop-status').hidden = false;
-    $('desktop-stop-status').textContent = '종료를 요청하고 있습니다. 처리 설정과 재생을 잠시 멈췄습니다.';
+    $('desktop-stop-status').textContent = 'Requesting shutdown. Processing controls and playback are temporarily paused.';
     const abort = new AbortController();
     const timer = setTimeout(() => abort.abort(), 10000);
     try {
@@ -99,11 +119,11 @@
       const result = await response.json();
       if (!response.ok || result.status !== 'stopping' || result.temporary_cleanup_pending !== true) throw new Error('stop');
       stopRequested = true;
-      $('desktop-stop-status').textContent = '종료를 요청했습니다. 정상 종료 후 임시 사본이 정리됩니다. 이 창을 닫아도 됩니다.';
-      $('status').textContent = '프로그램 종료를 요청했습니다. 임시 사본의 정리 완료를 이 화면에서 확인하지는 않습니다.';
-      $('result-state').textContent = '종료 요청';
+      $('desktop-stop-status').textContent = 'Shutdown requested. Temporary copies are cleaned up after a normal shutdown. You may close this tab.';
+      $('status').textContent = 'Processor shutdown requested. This page does not confirm that temporary-copy cleanup has completed.';
+      $('result-state').textContent = 'Shutdown requested';
     } catch {
-      $('desktop-stop-status').textContent = '종료 응답을 확인하지 못했습니다. 실행 창을 확인해 주세요. 정상 종료 여부와 임시 사본의 정리는 확인되지 않았습니다.';
+      $('desktop-stop-status').textContent = 'Could not confirm the shutdown response. Check the launcher window. A normal shutdown and temporary-copy cleanup have not been confirmed.';
       $('settings-fields').disabled = false;
       for (const player of audio) player.controls = true;
       for (const id of ['download-wav', 'download-zip']) $(id).removeAttribute('aria-disabled');
@@ -117,17 +137,17 @@
     $(id).addEventListener('click', (event) => { if (stopping || stopRequested) event.preventDefault(); });
   }
 
-  const usesStoredFiles = (mode) => mode === 'long' || mode === 'precision' || mode === 'compressed';
-  const usesBandControls = (mode) => mode === 'bands' || mode === 'compatible' || usesStoredFiles(mode);
+  const usesStoredFiles = (mode) => mode === 'long' || mode === 'precision' || mode === 'compressed' || mode === 'persistent';
+  const usesBandControls = (mode) => mode === 'bands' || mode === 'compatible' || (usesStoredFiles(mode) && mode !== 'persistent');
   const fileLimitMiB = (mode) => mode === 'compressed' ? 32 : (usesStoredFiles(mode) ? 128 : 32);
   const formatRate = (rate) => `${rate / 1000}kHz`;
-  const formatChannels = (channels) => channels === 2 ? '스테레오 · 2채널' : '모노 · 1채널';
+  const formatChannels = (channels) => channels === 2 ? 'stereo · 2 channels' : channels === 1 ? 'mono · 1 channel' : `${channels} channels (unsupported)`;
   function formatSamples(metadata) {
     const name = metadata.sample_format;
     if (name === 'signed_PCM24_little_endian') return 'PCM24';
     if (name === 'IEEE_FLOAT32_little_endian') return 'Float32';
     if (name === undefined || name === 'signed_PCM16_little_endian') return 'PCM16';
-    throw new Error('오디오 샘플 형식 응답이 올바르지 않습니다.');
+    throw new Error('Invalid audio sample-format response.');
   }
 
   for (const player of audio) {
@@ -143,6 +163,7 @@
   }
 
   function clearResult() {
+    abReview?.reset();
     for (const player of audio) { player.pause(); player.removeAttribute('src'); player.load(); }
     for (const url of urls) URL.revokeObjectURL(url);
     urls = [];
@@ -151,6 +172,8 @@
     lastReport = null;
     lastReviewContext = null;
     $('profile-result').hidden = true;
+    $('persistent-result').hidden = true;
+    $('persistent-result-detail').textContent = '';
     $('profile-band-list').replaceChildren();
     resetListeningReview();
     $('results').hidden = true;
@@ -159,7 +182,7 @@
     $('report-json').textContent = '';
     $('format-stat').textContent = '';
     for (const id of ['download-wav', 'download-zip']) $(id).removeAttribute('href');
-    $('result-state').textContent = '준비';
+    $('result-state').textContent = 'Ready';
     $('result-state').className = 'state-label';
   }
 
@@ -167,39 +190,139 @@
     if (interactionLocked()) return;
     clearResult();
     resetProfileDeclaration();
+    fileCheckSerial += 1;
+    if (fileCheckTimer !== null) clearTimeout(fileCheckTimer);
+    fileCheckTimer = null;
+    fileMetadata = null;
+    fileChecking = false;
     selectedFile = file || null;
-    $('file-name').textContent = file ? file.name : '아직 선택한 파일이 없습니다';
+    $('file-name').textContent = file ? file.name : 'No file selected';
     $('process-button').disabled = !selectedFile;
-    $('status').textContent = file ? '설정을 확인한 뒤 선택한 파일을 처리하세요.' : '파일을 선택하거나 합성 예제로 시작하세요.';
-    const validationError = file ? validateFile(file, $('mode').value) : null;
+    $('status').textContent = file ? 'Check the settings, then process the selected file.' : 'Choose a file or start with a synthetic example.';
+    const validCandidate = !file || (Number.isSafeInteger(file.size) && file.size > 0
+      && ((/\.wav$/i.test(file.name) && file.size <= 128*1024*1024)
+        || (/\.(mp3|m4a)$/i.test(file.name) && file.size <= 32*1024*1024)));
+    const validationError = validCandidate ? null : 'Choose a nonempty WAV up to 128 MiB, or MP3 / AAC M4A up to 32 MiB. The selected mode may have lower limits.';
     if (validationError) {
       selectedFile = null;
       $('process-button').disabled = true;
       showError(validationError);
     }
+    if (selectedFile) void checkFileHeader(selectedFile);
+    else updateFilePreflight();
   }
 
+  function fallbackMetadata(file, message) {
+    const compressed = /\.(mp3|m4a)$/i.test(file.name);
+    return {status:compressed?'deferred':'unchecked',kind:compressed?'compressed':'wav',
+      container_bytes:file.size,header_only:true,sample_values_checked:false,message};
+  }
+
+  function fileAssessment() {
+    if (!selectedFile) return null;
+    if (fileChecking || ((fileMetadata?.kind === 'compressed' || $('mode').value === 'persistent') && !capabilitiesKnown)) return {allowed:false,level:'checking',message:'Checking the file header and available input modes. No audio is decoded or played.',recommended_mode:null};
+    if (window.HumPreflight && fileMetadata) return window.HumPreflight.assess(fileMetadata,$('mode').value,{compressedAvailable,persistentAvailable});
+    const error = validateFile(selectedFile,$('mode').value);
+    return {allowed:!error,level:error?'error':'warning',message:error || 'Header checker unavailable. No format is confirmed here; the local processor still performs final input validation.',recommended_mode:null};
+  }
+
+  function updateFilePreflight() {
+    const assessment = fileAssessment();
+    $('preflight-panel').hidden = !selectedFile;
+    $('preflight-suggest').hidden = true;
+    if (assessment) {
+      $('preflight-panel').setAttribute('data-state',assessment.level);
+      $('preflight-summary').textContent = assessment.level === 'checking' ? 'Checking header…'
+        : fileMetadata?.status === 'metadata'
+          ? `${formatRate(fileMetadata.sample_rate_hz)} · ${formatChannels(fileMetadata.channels)} · ${fileMetadata.sample_format} · ${fileMetadata.duration_seconds.toFixed(2)} s`
+          : 'Metadata not confirmed';
+      $('preflight-detail').textContent = assessment.message;
+      const suggested = assessment.recommended_mode;
+      if (!assessment.allowed && suggested && suggested !== $('mode').value && modes[suggested]) {
+        $('preflight-suggest').hidden = false;
+        $('preflight-suggest').disabled = interactionLocked() || fileChecking;
+        $('preflight-suggest').textContent = `Use ${modes[suggested]}`;
+      }
+    }
+    $('process-button').disabled = interactionLocked() || !selectedFile || !assessment?.allowed;
+  }
+
+  async function checkFileHeader(file) {
+    const serial = fileCheckSerial;
+    const current = () => serial === fileCheckSerial && selectedFile === file;
+    if (!window.HumPreflight) {
+      fileMetadata = fallbackMetadata(file,'Header checker unavailable; final server validation is required.');
+      updateFilePreflight(); return;
+    }
+    fileChecking = true;
+    updateFilePreflight();
+    fileCheckTimer = setTimeout(() => {
+      if (!current()) return;
+      fileCheckSerial += 1;
+      fileChecking = false; fileCheckTimer = null;
+      fileMetadata = fallbackMetadata(file,'Header check timed out. No format was confirmed. The selected mode still performs final local validation.');
+      updateFilePreflight();
+    },11000);
+    try {
+      const info = await window.HumPreflight.inspect(file,{isCancelled:() => !current()});
+      if (!current()) return;
+      fileMetadata = info;
+    } catch {
+      if (!current()) return;
+      fileMetadata = fallbackMetadata(file,'Could not read this header. No format was confirmed; final server validation is still required.');
+    } finally {
+      if (current()) {
+        if (fileCheckTimer !== null) clearTimeout(fileCheckTimer);
+        fileCheckTimer = null; fileChecking = false;
+        updateFilePreflight();
+      }
+    }
+  }
+
+  $('preflight-suggest').addEventListener('click', () => {
+    if (interactionLocked() || fileChecking) return;
+    const suggested = fileAssessment()?.recommended_mode;
+    if (!suggested || !modes[suggested] || (suggested === 'compressed' && !compressedAvailable)) return;
+    $('mode').value = suggested;
+    $('mode').dispatchEvent(new Event('input',{bubbles:true}));
+  });
+
   function validateFile(file, mode) {
+    if (mode === 'persistent' && !persistentAvailable) return 'Persistent hum is unavailable in this processor. Select another available WAV mode.';
     if (mode === 'compressed') {
-      if (!compressedAvailable) return 'MP3·M4A 기능을 사용할 수 없는 실행 환경입니다. WAV 파일과 WAV 처리 방식을 선택해 주세요.';
+      if (!compressedAvailable) return 'MP3/M4A processing is unavailable in this environment. Choose a WAV file and a WAV processing mode.';
       if (/\.(mp3|m4a)$/i.test(file.name) && file.size > 0 && file.size <= fileLimitMiB(mode) * 1024 * 1024) return null;
-      return '0바이트보다 크고 32MiB 이하인 MP3 또는 AAC M4A 파일을 선택해 주세요. 디코딩 후 최대 10분·44.1/48kHz·모노/스테레오만 지원하며, ALAC M4A는 지원하지 않습니다.';
+      return 'Choose a nonempty MP3 or AAC M4A file no larger than 32 MiB. Decoded audio must be at most 10 minutes, 44.1/48 kHz, mono or stereo. ALAC M4A is not supported.';
     }
     if (/\.wav$/i.test(file.name) && file.size > 0 && file.size <= fileLimitMiB(mode) * 1024 * 1024) return null;
-    const format = mode === 'precision'
-      ? '고해상도 WAV 모드는 최대 10분·44.1·48kHz·모노·스테레오·PCM16·PCM24·Float32를 지원합니다.'
+    const format = mode === 'persistent'
+      ? 'Persistent hum supports 44.1/48 kHz mono/stereo PCM16, PCM24 or Float32 WAV, up to 60 seconds and 128 MiB. MP3/M4A is not accepted.'
+      : mode === 'precision'
+      ? 'High-resolution WAV supports up to 10 minutes of 44.1/48 kHz mono or stereo PCM16, PCM24 or Float32 audio.'
       : mode === 'long'
-      ? '긴 WAV 모드는 최대 10분·44.1·48kHz·모노·스테레오·PCM16만 지원합니다.'
-      : (mode === 'compatible' ? '일반 WAV 모드는 44.1·48kHz 모노·스테레오 PCM16만 지원합니다.' : '이 모드는 48kHz·모노·PCM16만 지원합니다. 스테레오나 44.1kHz 파일은 일반 WAV 모드를 선택하세요.');
-    return `0바이트보다 크고 ${fileLimitMiB(mode)}MiB 이하인 WAV 파일을 선택해 주세요. ${format}`;
+      ? 'Long WAV supports only 44.1/48 kHz mono or stereo PCM16 audio, up to 10 minutes.'
+      : (mode === 'compatible' ? 'Standard WAV supports only 44.1/48 kHz mono or stereo PCM16 audio.' : 'This mode accepts only 48 kHz mono PCM16. For stereo or 44.1 kHz files, choose Standard WAV.');
+    return `Choose a nonempty WAV file no larger than ${fileLimitMiB(mode)} MiB. ${format}`;
+  }
+
+  function serverErrorMessage(message, status, mode) {
+    // Keep API/error schemas unchanged. These are English recovery instructions,
+    // not purported exact translations of untranslated backend diagnostics.
+    if (typeof message === 'string' && !/[\u1100-\u11ff\u3130-\u318f\uac00-\ud7a3]/.test(message)) return message;
+    if (status === 403) return 'The local session was rejected. Reload this local page and try again.';
+    const context = `${modes[mode]}. ${help[mode]}`;
+    if (status === 413) return `The file or decoded audio exceeds the current mode limits. Check the file requirements. ${context}`;
+    if (status === 503) return `The processor may be busy or an optional decoder may be unavailable. Wait for the current job to finish and check the mode requirements. ${context}`;
+    if (status === 400) return `This file or setting is not supported by the selected mode. Check the file format and settings, then try again. ${context}`;
+    return `The local processor could not complete the request. Check the file format and settings, then try again. ${context}`;
   }
 
   function showError(message) {
     $('error').textContent = message;
     $('error').hidden = false;
-    $('result-state').textContent = '확인 필요';
+    $('result-state').textContent = 'Needs attention';
     $('result-state').className = 'state-label failed';
-    $('status').textContent = '처리 결과를 만들지 않았습니다. 입력이나 설정을 확인해 주세요.';
+    $('status').textContent = 'No result was created. Check the input file and settings.';
   }
 
   $('audio-file').addEventListener('change', (event) => setFile(event.target.files[0]));
@@ -214,7 +337,7 @@
     if (interactionLocked()) return;
     const files = event.dataTransfer.files;
     $('audio-file').value = '';
-    if (files.length !== 1) { setFile(null); showError('한 번에 오디오 파일 하나만 선택해 주세요.'); return; }
+    if (files.length !== 1) { setFile(null); showError('Choose one audio file at a time.'); return; }
     setFile(files[0]);
   });
   // A dropped file must never navigate the browser away from this local tool.
@@ -227,50 +350,58 @@
     $('mode-help').textContent = help[mode];
     $('harmonic-options').hidden = mode !== 'harmonics';
     $('band-options').hidden = !bandControls;
-    $('attenuation-options').hidden = bandControls || mode === 'profile';
+    $('attenuation-options').hidden = bandControls || mode === 'profile' || mode === 'persistent';
     $('profile-options').hidden = mode !== 'profile';
+    $('persistent-options').hidden = mode !== 'persistent';
+    $('example-button').disabled = interactionLocked() || (mode === 'persistent' && !persistentAvailable);
     $('compatible-notice').hidden = mode !== 'compatible';
     $('long-notice').hidden = mode !== 'long';
     $('precision-notice').hidden = mode !== 'precision';
     $('compressed-notice').hidden = mode !== 'compressed';
+    $('persistent-notice').hidden = mode !== 'persistent';
     $('audio-file').accept = mode === 'compressed' ? '.mp3,.m4a,audio/mpeg,audio/mp4,audio/x-m4a' : '.wav,audio/wav,audio/x-wav';
-    $('file-type-label').textContent = mode === 'compressed' ? 'MP3·M4A 파일 선택' : 'WAV 파일 선택';
+    $('file-type-label').textContent = mode === 'compressed' ? 'Choose an MP3/M4A file' : 'Choose a WAV file';
     $('input-contract').textContent = mode === 'compressed'
-      ? 'MP3·AAC M4A · 최대 32MiB. 디코딩 후 44.1/48kHz · 모노/스테레오 · 최대 10분 또는 128MiB 중 먼저 닿는 한도. 출력은 Float32 WAV이며 MP3·M4A로 다시 압축하지 않습니다.'
+      ? 'MP3/AAC M4A · up to 32 MiB. After decoding: 44.1/48 kHz · mono/stereo · up to 10 minutes or 128 MiB, whichever comes first. Output is Float32 WAV, not re-encoded MP3/M4A.'
+      : mode === 'persistent'
+      ? '44.1/48 kHz · mono/stereo · PCM16/PCM24/Float32 WAV · up to 60 seconds and 128 MiB. Native sample format, rate, channels and frame count are preserved; no resampling.'
       : mode === 'precision'
-      ? '44.1·48kHz · 모노·스테레오 · PCM16·PCM24·Float32 WAV · 최대 10분 또는 128MiB. 원본 형식과 길이를 유지하며, 고해상도 스테레오는 크기 한도에 먼저 닿을 수 있습니다.'
+      ? '44.1/48 kHz · mono/stereo · PCM16/PCM24/Float32 WAV · up to 10 minutes or 128 MiB. Original sample format and length are preserved; high-resolution stereo may reach the size limit first.'
       : mode === 'long'
-      ? '44.1·48kHz · 모노·스테레오 · PCM16 WAV · 최대 10분 · 128MiB. 샘플 수·샘플레이트·채널 수를 유지합니다. 44.1kHz 변환 안내를 확인하세요.'
+      ? '44.1/48 kHz · mono/stereo · PCM16 WAV · up to 10 minutes · 128 MiB. Sample count, sample rate and channel count are preserved. Read the 44.1 kHz resampling notes.'
       : mode === 'compatible'
-      ? '44.1·48kHz · 모노·스테레오 · PCM16 WAV · 최대 60초 · 32MiB. 아래 안내대로 샘플레이트를 변환하며 채널 수를 유지합니다.'
-      : '48kHz · 모노 · PCM16 · 최대 60초 · 32MiB. 다른 형식은 자동 변환하지 않습니다.';
+      ? '44.1/48 kHz · mono/stereo · PCM16 WAV · up to 60 seconds · 32 MiB. Resampling follows the notes below; channel count is preserved.'
+      : '48 kHz · mono · PCM16 · up to 60 seconds · 32 MiB. Other formats are not converted automatically.';
     for (let n = 1; n <= 3; n++) {
-      const label = `${Number($('hum-hz').value) * n} Hz · ${n === 1 ? '기본' : n + '배'}`;
+      const label = `${Number($('hum-hz').value) * n} Hz · ${n === 1 ? 'fundamental' : 'order ' + n}`;
       $('harmonic-label-' + n).textContent = label;
       $('band-label-' + n).textContent = label;
       $('band-depth-value-' + n).textContent = `${$('band-depth-' + n).value} dB`;
     }
     $('attenuation-value').textContent = `${$('attenuation').value} dB`;
     $('profile-depth-value').textContent = `${$('profile-depth').value} dB`;
+    $('persistent-depth-value').textContent = `${$('persistent-depth').value} dB`;
     const profileBase = Number($('hum-hz').value);
-    $('profile-range').textContent = `${profileBase}Hz의 1~32배: ${profileBase}~${(profileBase * 32).toLocaleString('ko-KR')}Hz · 대역마다 ±1Hz`;
+    $('profile-range').textContent = `${profileBase} Hz × orders 1–32: ${profileBase}–${(profileBase * 32).toLocaleString('en-US')} Hz · ±1 Hz per band`;
     $('band-depth-help').textContent = mode === 'compressed'
-      ? '기본 설정은 6·3·0 dB입니다. 모두 0 dB이면 디코딩 원본 WAV의 오디오 데이터 값을 유지합니다. 압축 파일 보존·압축 전 원음 복원이 아니며, 설정값은 실제 잡음 감소량이 아닙니다.'
-      : '기본 설정은 6·3·0 dB입니다. 모두 0 dB이면 원본 그대로이며, 설정값은 실제 잡음 감소량의 측정값이 아닙니다.';
+      ? 'Defaults are 6/3/0 dB. With all bands at 0 dB, decoded input WAV sample values are preserved. This does not preserve the compressed file or restore the pre-compression signal; settings are not measurements of actual noise reduction.'
+      : 'Defaults are 6/3/0 dB. With all bands at 0 dB, the input is unchanged. Settings are not measurements of actual noise reduction.';
     $('example-scope').textContent = mode === 'profile'
-      ? '실험 모드 예제는 8초·48kHz·모노 PCM16 합성음입니다. 첫 0~2초에는 직접 만든 잡음만 있고, 2초부터 원하는 합성음이 더해집니다. 구간 0~2초를 입력하고 예제에 대한 확인 체크를 직접 해 주세요. 내 파일의 잡음 구간을 확인한 것은 아닙니다.'
+      ? 'The experimental example is an 8-second, 48 kHz mono PCM16 synthetic signal. The first 0–2 seconds contain generated noise only; wanted synthetic content starts at 2 seconds. Enter 0–2 seconds and explicitly confirm the example interval. This does not verify a noise-only interval in your own file.'
+      : mode === 'persistent'
+      ? 'An 8-second, 48 kHz stereo PCM16 WAV with generated wanted content and four persistent harmonic lines. It is a constructed example, not evidence of quality in your own recording. Attenuation settings do not change the synthetic input.'
       : mode === 'compressed'
-      ? '6초·48kHz·스테레오 합성음을 로컬에서 MP3로 인코딩·디코딩한 예제입니다. PyAV 19.x가 없으면 실행되지 않으며 자동 설치하지 않습니다. 감쇠 설정과 무관하게 같은 합성 입력을 사용하며 주파수를 바꾸면 예제도 바뀝니다.'
+      ? 'A 6-second, 48 kHz stereo synthetic signal is locally encoded to MP3 and decoded for this example. It requires PyAV 19.x, which is not installed automatically. Attenuation settings do not change the synthetic input; changing the frequency does.'
       : mode === 'precision'
-      ? '고해상도 예제는 직접 만든 6초·48kHz·스테레오 PCM24이며 Float32·44.1kHz 시험은 아닙니다. 감쇠 설정과 무관하게 같은 합성 입력을 사용하며, 주파수를 바꾸면 예제도 바뀝니다.'
+      ? 'The high-resolution example is a generated 6-second, 48 kHz stereo PCM24 signal, not a Float32 or 44.1 kHz test. Attenuation settings do not change the synthetic input; changing the frequency does.'
       : mode === 'long'
-      ? '긴 WAV 예제는 65초·48kHz·스테레오이며 샘플레이트를 변환하지 않습니다. 44.1kHz 변환을 확인하려면 해당 WAV를 직접 선택하세요. 감쇠 설정과 무관하게 같은 합성 입력을 사용하며, 주파수를 바꾸면 예제도 바뀝니다.'
+      ? 'The Long WAV example is a 65-second, 48 kHz stereo signal with no resampling. To test 44.1 kHz resampling, select a matching WAV file. Attenuation settings do not change the synthetic input; changing the frequency does.'
       : bandControls
-      ? `${mode === 'compatible' ? '일반 WAV 예제는 48kHz 스테레오입니다. ' : ''}감쇠 설정과 무관하게 같은 6초 합성 입력을 사용합니다. 주파수를 바꾸면 예제도 바뀝니다.`
-      : '예제는 선택한 모드·대역에 맞춰 생성됩니다.';
+      ? `${mode === 'compatible' ? 'The Standard WAV example is 48 kHz stereo. ' : ''}Attenuation settings do not change the same 6-second synthetic input. Changing the frequency changes the example.`
+      : 'The example is generated for the selected mode and bands.';
   }
 
-  for (const id of ['mode', 'hum-hz', 'attenuation', 'harmonic-1', 'harmonic-2', 'harmonic-3', 'band-depth-1', 'band-depth-2', 'band-depth-3', 'profile-start', 'profile-end', 'profile-orders', 'profile-depth', 'profile-confirm']) {
+  for (const id of ['mode', 'hum-hz', 'attenuation', 'harmonic-1', 'harmonic-2', 'harmonic-3', 'band-depth-1', 'band-depth-2', 'band-depth-3', 'profile-start', 'profile-end', 'profile-orders', 'profile-depth', 'profile-confirm', 'persistent-depth']) {
     $(id).addEventListener('input', () => {
       if (interactionLocked()) return;
       clearResult();
@@ -284,17 +415,8 @@
           ? (exampleIntervalOnly || !selectedFile ? 'example' : 'user_file') : null;
       }
       updateSettingsControls();
-      $('status').textContent = '설정이 바뀌었습니다. 새 설정으로 다시 처리해 주세요.';
-      if (id === 'mode' && selectedFile) {
-        const validationError = validateFile(selectedFile, $('mode').value);
-        if (validationError) {
-          selectedFile = null;
-          $('audio-file').value = '';
-          $('process-button').disabled = true;
-          $('file-name').textContent = '이 모드에 맞는 파일을 다시 선택해 주세요';
-          showError(validationError);
-        }
-      }
+      $('status').textContent = 'Settings changed. Process again with the new settings.';
+      updateFilePreflight();
     });
   }
   $('band-bypass').addEventListener('click', () => {
@@ -303,8 +425,8 @@
     for (let n = 1; n <= 3; n++) $('band-depth-' + n).value = '0';
     updateSettingsControls();
     $('status').textContent = $('mode').value === 'compressed'
-      ? '모든 대역을 0 dB로 설정했습니다. 새로 처리하면 디코딩 원본 WAV의 오디오 데이터를 그대로 비교합니다. 압축 전 원음 복원은 아닙니다.'
-      : '모든 대역을 0 dB로 설정했습니다. 새로 처리하면 원본 그대로 비교할 수 있습니다.';
+      ? 'All bands are now at 0 dB. Process again to compare unchanged decoded-input WAV samples. This does not restore the pre-compression signal.'
+      : 'All bands are now at 0 dB. Process again to compare with the unchanged input.';
   });
 
   function resetProfileDeclaration() {
@@ -323,7 +445,7 @@
     $('profile-confirm').checked = false;
     exampleIntervalOnly = true;
     profileConfirmedSource = null;
-    $('status').textContent = '합성 예제용 0~2초만 입력했습니다. 내 파일의 잡음 구간은 확인하지 않았습니다. 예제를 실행하려면 확인 체크를 직접 해 주세요.';
+    $('status').textContent = 'Filled 0–2 seconds for the synthetic example only. No noise-only interval in your file has been verified. Check the confirmation yourself before running the example.';
   });
 
   function profileParameters() {
@@ -339,19 +461,19 @@
     const startSample = sampleBoundary(start);
     const endSample = sampleBoundary(end);
     if (startSample === null || endSample === null || startSample < 0n || endSample > 2880000n || endSample - startSample < 96000n) {
-      throw new Error('같은 입력의 잡음 구간 시작·끝을 초 단위로 입력하세요. 최소 2초, 최대 끝 60초이며 48kHz 샘플 경계에 맞아야 합니다. 실제 파일 길이는 처리기가 확인합니다.');
+      throw new Error('Enter noise-only start and end in seconds within the same input. Use at least 2 seconds, ending no later than 60 seconds, aligned to 48 kHz sample boundaries. The processor checks the actual file length.');
     }
-    if (!$('profile-confirm').checked) throw new Error('지정한 구간에 원하는 소리가 없음을 직접 확인한 뒤 체크해 주세요. 예제와 내 파일은 별개의 확인입니다.');
+    if (!$('profile-confirm').checked) throw new Error('Check that the interval contains no wanted sound, then confirm it. The example and your own file require separate confirmations.');
     const orders = $('profile-orders').value.trim();
     if (orders !== 'all') {
       const parts = orders.split(',');
       if (!parts.length || parts.length > 32 || !parts.every(part => /^(?:[1-9]|[12]\d|3[0-2])$/.test(part))
         || !parts.every((part, index) => index === 0 || Number(part) > Number(parts[index - 1]))) {
-        throw new Error('분석할 배수는 all 또는 1~32의 서로 다른 정수를 작은 수부터 쉼표로 입력하세요. 예: 1,6,21,24');
+        throw new Error('Enter all or unique ascending comma-separated harmonic orders from 1 to 32, for example 1,6,21,24.');
       }
     }
     const depth = Number($('profile-depth').value);
-    if (!Number.isInteger(depth) || depth < 0 || depth > 12) throw new Error('실험 모드 감쇠량은 0~12 dB 정수로 설정하세요.');
+    if (!Number.isInteger(depth) || depth < 0 || depth > 12) throw new Error('Set experimental attenuation to an integer from 0 to 12 dB.');
     return {profile_start_seconds: start, profile_end_seconds: end, confirm_noise_only: 'true', orders, attenuation_db: String(depth)};
   }
 
@@ -367,44 +489,66 @@
       || !Number.isInteger(report.config.profile_start_sample) || !Number.isInteger(report.config.profile_end_sample)
       || summary.profile_start_seconds !== report.config.profile_start_sample / 48000
       || summary.profile_end_seconds !== report.config.profile_end_sample / 48000) {
-      throw new Error('실험 모드의 대역 보호 근거 응답이 올바르지 않습니다.');
+      throw new Error('Invalid experimental band-guard evidence response.');
     }
     $('profile-result').hidden = false;
-    $('profile-result-state').textContent = summary.processing_bypassed ? '그대로 · 처리 생략' : `${summary.approved_orders.length}개 대역 적용 가능`;
-    $('profile-result-interval').textContent = `직접 지정한 잡음 구간 ${summary.profile_start_seconds}~${summary.profile_end_seconds}초 · 잡음만 있는지는 기계가 검증하지 않았습니다.`;
+    $('profile-result-state').textContent = summary.processing_bypassed ? 'Unchanged · bypassed' : `${summary.approved_orders.length} eligible bands`;
+    $('profile-result-interval').textContent = `User-declared noise-only interval ${summary.profile_start_seconds}–${summary.profile_end_seconds} s · the noise-only assumption has not been machine-verified.`;
     const reasons = {
-      profile_unsupported: '지정 구간에서 성분을 확인하지 못함',
-      whole_file_amplitude_exceeds_profile: '진폭 증가로 파일 전체에서 제외',
-      profile_supported_amplitude_consistent: '기준 구간·진폭 조건 충족 · 음질 보장 아님',
+      profile_unsupported: 'Component not supported by the declared interval',
+      whole_file_amplitude_exceeds_profile: 'Withheld for the whole file because amplitude increased',
+      profile_supported_amplitude_consistent: 'Profile and amplitude conditions met · no quality guarantee',
     };
     const list = $('profile-band-list');
     list.replaceChildren();
     if (!summary.bands.length) {
       const item = document.createElement('p');
-      item.textContent = summary.bypass_reason === 'zero_depth' ? '0 dB: 분석과 필터를 건너뛰어 원본 그대로입니다.' : '적용할 대역이 없어 원본 그대로입니다.';
+      item.textContent = summary.bypass_reason === 'zero_depth' ? '0 dB: analysis and filtering bypassed; input unchanged.' : 'No eligible bands; input unchanged.';
       list.append(item);
     }
     for (const band of summary.bands) {
-      if (!Number.isInteger(band.order) || band.order < 1 || band.order > 32 || typeof band.reason !== 'string') throw new Error('실험 모드 대역 응답이 올바르지 않습니다.');
+      if (!Number.isInteger(band.order) || band.order < 1 || band.order > 32 || typeof band.reason !== 'string') throw new Error('Invalid experimental band response.');
       const row = document.createElement('div');
       row.className = 'profile-band-row';
       const label = document.createElement('strong');
-      label.textContent = `${band.order}배 · ${report.config.nominal_hum_hz * band.order}Hz`;
+      label.textContent = `Order ${band.order} · ${report.config.nominal_hum_hz * band.order} Hz`;
       const state = document.createElement('span');
-      state.textContent = band.approved ? '후보 적용' : (band.amplitude_guard_rejected ? '보호 보류' : '성분 미확인');
+      state.textContent = band.approved ? 'Candidate applied' : (band.amplitude_guard_rejected ? 'Withheld by guard' : 'Component unsupported');
       state.className = band.approved ? 'profile-band-approved' : 'profile-band-withheld';
       const reason = document.createElement('small');
-      reason.textContent = reasons[band.reason] || `상세 보고서 확인: ${band.reason}`;
+      reason.textContent = reasons[band.reason] || `See the detailed report: ${band.reason}`;
       row.append(label, state, reason);
       list.append(row);
     }
+  }
+
+  function renderPersistentSummary(report) {
+    const algorithm = report.algorithm;
+    const orders = algorithm?.accepted_orders;
+    if (!Array.isArray(orders) || !orders.every((order, index) => Number.isInteger(order)
+      && order >= 1 && order <= 32 && (index === 0 || order > orders[index - 1]))
+      || (orders.length > 0 && orders.length < 4)
+      || typeof algorithm.reason !== 'string' || typeof report.processing_bypassed !== 'boolean'
+      || !Number.isFinite(report.config?.max_attenuation_db) || report.config.max_attenuation_db < 0
+      || report.config.max_attenuation_db > 18 || ![50,60].includes(report.config.nominal_hum_hz)) {
+      throw new Error('Invalid persistent-hum evidence response.');
+    }
+    const reasons = {
+      zero_depth: '0 dB: analysis and filtering bypassed.',
+      insufficient_analysis_windows: 'Not enough analysis windows for persistent-family evidence.',
+      no_consistent_persistent_family: 'No sufficiently consistent persistent harmonic family was found.',
+      persistent_family_mask: 'A consistent persistent harmonic family was found.',
+    };
+    $('persistent-result').hidden = false;
+    $('persistent-result-state').textContent = report.processing_bypassed ? 'Unchanged · bypassed' : `${orders.length} accepted harmonic lines`;
+    $('persistent-result-detail').textContent = `${reasons[algorithm.reason] || `Analysis reason: ${algorithm.reason}.`} ${orders.length ? `Accepted orders: ${orders.join(', ')}.` : 'No accepted orders.'} ${report.processing_bypassed ? 'The validated audio payload is unchanged. This is not successful noise removal.' : 'Accepted lines are processing candidates, not a determination that they are unwanted noise.'}`;
   }
 
   function resetListeningReview() {
     for (const id of ['review-hum', 'review-wanted', 'review-artifacts', 'review-notes']) $(id).value = '';
     $('review-confirm').checked = false;
     $('review-export').disabled = true;
-    $('review-status').textContent = '세 항목을 기록한 후 직접 확인을 체크하세요. 서버에 평가를 저장하지 않습니다.';
+    $('review-status').textContent = 'Complete all three observations, then check your confirmation. Your assessment is not stored on the server.';
   }
 
   function updateListeningReview() {
@@ -415,7 +559,7 @@
     $(id).addEventListener('input', () => {
       $('review-confirm').checked = false;
       updateListeningReview();
-      $('review-status').textContent = '기록이 바뀌었습니다. 내용을 확인한 뒤 직접 확인을 다시 체크하세요.';
+      $('review-status').textContent = 'Observations changed. Review them and check your confirmation again.';
     });
   }
   $('review-confirm').addEventListener('input', updateListeningReview);
@@ -434,11 +578,11 @@
     link.download = 'hum-dsp-personal-listening.json';
     link.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
-    $('review-status').textContent = '개인 청감 기록의 저장을 요청했습니다. 기계 검증·음질 합격·상용 승인은 아닙니다.';
+    $('review-status').textContent = 'Personal listening JSON download requested. This is not machine verification, an audio-quality pass or commercial approval.';
   });
 
   function makeBlobURL(encoded, type) {
-    if (typeof encoded !== 'string') throw new Error('처리 응답에 필요한 파일이 없습니다.');
+    if (typeof encoded !== 'string') throw new Error('A required file is missing from the processing response.');
     const binary = atob(encoded);
     const buffer = new Uint8Array(binary.length);
     for (let i = 0; i < binary.length; i++) buffer[i] = binary.charCodeAt(i);
@@ -448,15 +592,15 @@
   }
 
   function localAssetURL(value, filename) {
-    if (typeof value !== 'string' || !value.startsWith('/api/long/assets/')) throw new Error('로컬 결과 파일 주소가 올바르지 않습니다.');
+    if (typeof value !== 'string' || !value.startsWith('/api/long/assets/')) throw new Error('Invalid local result-file address.');
     const url = new URL(value, window.location.origin);
     const expectedPath = new RegExp('^/api/long/assets/[a-f0-9]{48}/' + filename.replace('.', '\\.') + '$');
-    if (url.origin !== window.location.origin || url.search || url.hash || !expectedPath.test(url.pathname)) throw new Error('로컬 결과 파일 주소가 올바르지 않습니다.');
+    if (url.origin !== window.location.origin || url.search || url.hash || !expectedPath.test(url.pathname)) throw new Error('Invalid local result-file address.');
     return url.href;
   }
 
   function paintWaveform(canvas, bins, bound, color) {
-    if (!Array.isArray(bins) || !bins.length) throw new Error('파형 응답 형식이 올바르지 않습니다.');
+    if (!Array.isArray(bins) || !bins.length) throw new Error('Invalid waveform response format.');
     const width = Math.max(1, canvas.getBoundingClientRect().width);
     const height = 100;
     const ratio = window.devicePixelRatio || 1;
@@ -471,7 +615,7 @@
     ctx.lineWidth = Math.max(1, width / bins.length * 0.7);
     ctx.beginPath();
     bins.forEach((range, i) => {
-      if (!Array.isArray(range) || range.length !== 2 || !range.every(Number.isFinite)) throw new Error('파형 값이 올바르지 않습니다.');
+      if (!Array.isArray(range) || range.length !== 2 || !range.every(Number.isFinite)) throw new Error('Invalid waveform sample values.');
       const x = (i + 0.5) * width / bins.length;
       ctx.moveTo(x, height / 2 - range[0] / bound * height * 0.43);
       ctx.lineTo(x, height / 2 - range[1] / bound * height * 0.43);
@@ -485,21 +629,32 @@
     const max = Math.max(0.001, ...input.flat().map(Math.abs), ...output.flat().map(Math.abs));
     paintWaveform($('input-waveform'), input, max, '#91a68f');
     paintWaveform($('output-waveform'), output, max, '#347350');
-    $('waveform-scale').textContent = `${lastChannels === 2 ? 'L/R 전체 공통축 포락 · 채널별 최솟값·최댓값, 합산 아님' : '두 파형의 공통 진폭 축'} ±${max.toFixed(4)} · 재생 음량 보정 없음`;
+    $('waveform-scale').textContent = `${lastChannels === 2 ? 'Shared L/R envelope scale · per-channel minima/maxima, not a sum' : 'Shared amplitude scale for both waveforms'} ±${max.toFixed(4)} · no playback level normalization`;
   }
   window.addEventListener('resize', drawWaveforms);
 
   async function run(isExample) {
     if (interactionLocked() || (!isExample && !selectedFile)) return;
+    if (!isExample && !fileAssessment()?.allowed) {
+      clearResult(); showError(fileAssessment()?.message || 'Wait for the file check or choose a supported mode.'); return;
+    }
     const mode = $('mode').value;
+    if (mode === 'persistent' && !persistentAvailable) {
+      clearResult(); showError('Persistent hum is unavailable in this processor. Select another available WAV mode.'); return;
+    }
     if (mode === 'compressed' && !compressedAvailable) {
-      clearResult(); showError('MP3·M4A 기능을 사용할 수 없는 실행 환경입니다. WAV 처리 방식을 선택해 주세요.'); return;
+      clearResult(); showError('MP3/M4A processing is unavailable in this environment. Choose a WAV processing mode.'); return;
     }
     const isLong = mode === 'long';
     const isCompressed = mode === 'compressed';
     const isProfile = mode === 'profile';
+    const isPersistent = mode === 'persistent';
     const isStoredFile = usesStoredFiles(mode);
     let profileConfig = null;
+    const persistentDepth = Number($('persistent-depth').value);
+    if (isPersistent && (!Number.isInteger(persistentDepth) || persistentDepth < 0 || persistentDepth > 18)) {
+      clearResult(); showError('Set persistent-hum attenuation to an integer from 0 to 18 dB.'); return;
+    }
     if (isProfile) {
       const requestedSource = isExample ? 'example' : 'user_file';
       if ($('profile-confirm').checked && profileConfirmedSource !== requestedSource) {
@@ -507,25 +662,25 @@
         $('profile-confirm').checked = false;
         profileConfirmedSource = null;
         showError(isExample
-          ? '현재 확인은 내 파일에 대한 것입니다. 합성 예제를 실행하려면 예제용 구간 0~2초 입력 버튼을 누르고 예제에 대해 다시 확인해 주세요.'
-          : '현재 확인은 합성 예제에 대한 것입니다. 내 파일에서 직접 확인한 잡음 구간 시작·끝을 입력한 뒤 다시 확인해 주세요.');
+          ? 'Your current confirmation is for your own file. To run the synthetic example, use the 0–2 s example interval button and confirm the example separately.'
+          : 'Your current confirmation is for the synthetic example. Enter the noise-only start and end you checked in your own file, then confirm again.');
         return;
       }
       if (!isExample && exampleIntervalOnly) {
         clearResult(); $('profile-confirm').checked = false;
         profileConfirmedSource = null;
-        showError('예제용 구간은 내 파일의 잡음 확인으로 사용할 수 없습니다. 내 파일에서 직접 확인한 구간 시작·끝을 다시 입력하세요.'); return;
+        showError('The example interval cannot verify noise in your own file. Enter the start and end of an interval you checked in your own file.'); return;
       }
       try { profileConfig = profileParameters(); }
       catch (error) { clearResult(); showError(error.message); return; }
     }
     const orders = [1,2,3].filter(n => $('harmonic-' + n).checked);
     if ($('mode').value === 'harmonics' && !orders.length) {
-      clearResult(); showError('처리할 기본·배수 대역을 하나 이상 선택해 주세요.'); return;
+      clearResult(); showError('Select at least one fundamental or harmonic band to process.'); return;
     }
     const bandDepths = [1,2,3].map(n => Number($('band-depth-' + n).value));
     if (usesBandControls($('mode').value) && !bandDepths.every(value => Number.isInteger(value) && value >= 0 && value <= 12)) {
-      clearResult(); showError('각 대역의 감쇠량은 0~12 dB 사이 정수로 설정해 주세요. 모두 0 dB로 설정해도 됩니다.'); return;
+      clearResult(); showError('Set each band attenuation to an integer from 0 to 12 dB. All bands may be set to 0 dB.'); return;
     }
     clearResult();
     busy = true;
@@ -534,25 +689,28 @@
     $('settings-fields').disabled = true;
     $('empty-state').hidden = true;
     $('busy-state').hidden = false;
-    $('result-state').textContent = '처리 중';
+    $('result-state').textContent = 'Processing';
     $('result-state').className = 'state-label busy';
     $('status').textContent = isStoredFile
-      ? `${modes[mode]}를 내 컴퓨터에서 처리 중입니다. 파일 길이·변환에 따라 수분이 걸릴 수 있으며 실시간 처리는 아닙니다.`
-      : '내 컴퓨터에서 처리 중입니다. 파일은 외부로 전송하지 않습니다.';
-    $('busy-copy').textContent = isStoredFile
-      ? '44.1kHz의 왕복 FIR 변환은 처리 시간이 더 길 수 있습니다. 진행률은 제공하지 않으며, 완료 후에도 자동 재생하지 않습니다.'
-      : '자동 재생하지 않습니다. 길이와 모드에 따라 잠시 걸릴 수 있습니다.';
+      ? `Processing ${modes[mode]} on this computer. File length and resampling may require several minutes; this is not real-time processing.`
+      : 'Processing on this computer. Files are not sent elsewhere.';
+    $('busy-copy').textContent = isPersistent
+      ? 'Offline whole-file analysis and FFT processing use memory. There is no progress percentage, automatic playback or real-time microphone processing.'
+      : isStoredFile
+      ? '44.1 kHz round-trip FIR resampling may take longer. No progress percentage is available, and playback does not start automatically when processing finishes.'
+      : 'There is no automatic playback. Processing time depends on file length and mode.';
     const parameters = new URLSearchParams(isStoredFile
       ? {hum_hz: $('hum-hz').value}
       : {mode, hum_hz: $('hum-hz').value});
-    if (isProfile) {
+    if (isPersistent) parameters.set('attenuation_db', String(persistentDepth));
+    else if (isProfile) {
       for (const [key, value] of Object.entries(profileConfig)) parameters.set(key, value);
     } else if (usesBandControls($('mode').value)) parameters.set('band_depths_db', bandDepths.join(','));
     else {
       parameters.set('attenuation_db', $('attenuation').value);
       if ($('mode').value === 'harmonics') parameters.set('orders', orders.join(','));
     }
-    const sourceName = isExample ? `직접 만든 ${isLong ? '65' : (isProfile ? '8' : '6')}초 합성 예제` : selectedFile.name;
+    const sourceName = isExample ? `Generated ${isLong ? '65' : ((isProfile || isPersistent) ? '8' : '6')}-second synthetic example` : selectedFile.name;
     const abort = new AbortController();
     const timer = setTimeout(() => abort.abort(), isStoredFile ? 900000 : 120000);
     try {
@@ -564,9 +722,10 @@
         signal: abort.signal, credentials: 'same-origin', cache: 'no-store'
       });
       const result = await response.json();
-      if (!response.ok) throw new Error(typeof result.error === 'string' ? result.error : '처리하지 못했습니다.');
-      if (!result.report || !result.waveforms || !modes[result.mode] || result.mode !== mode) throw new Error('처리 응답 형식이 올바르지 않습니다.');
-      if (isStoredFile && (!Number.isFinite(result.duration_seconds) || result.duration_seconds <= 0 || result.duration_seconds > 600)) throw new Error('디코딩·WAV 길이 응답이 올바르지 않습니다.');
+      if (!response.ok) throw new Error(serverErrorMessage(typeof result.error === 'string' ? result.error : 'Processing failed.', response.status, mode));
+      const waveforms = result.waveforms || (isPersistent ? result.report?.waveforms : null);
+      if (!result.report || !waveforms || !modes[result.mode] || result.mode !== mode) throw new Error('Invalid processing response format.');
+      if (isStoredFile && (!Number.isFinite(result.duration_seconds) || result.duration_seconds <= 0 || result.duration_seconds > (isPersistent ? 60 : 600))) throw new Error('Invalid decoded-audio/WAV duration response.');
       const inputURL = isStoredFile ? localAssetURL(result.input_wav_url, 'input.wav') : makeBlobURL(result.input_wav_base64, 'audio/wav');
       const outputURL = isStoredFile ? localAssetURL(result.output_wav_url, 'processed.wav') : makeBlobURL(result.output_wav_base64, 'audio/wav');
       const zipURL = isStoredFile ? localAssetURL(result.download_zip_url, 'result.zip') : makeBlobURL(result.download_zip_base64, 'application/zip');
@@ -576,68 +735,77 @@
       $('download-zip').href = zipURL;
       const report = result.report;
       if (isProfile) renderProfileSummary(report);
+      if (isPersistent) renderPersistentSummary(report);
       $('source-name').textContent = sourceName;
       $('result-settings').classList.toggle('band-settings', usesBandControls(result.mode));
       if (usesBandControls(result.mode)) {
         const depths = report.config.band_depths_db;
-        if (!Array.isArray(depths) || depths.length !== 3 || !depths.every(value => Number.isFinite(value) && value >= 0 && value <= 12)) throw new Error('대역별 처리 설정 응답이 올바르지 않습니다.');
-        $('result-settings').textContent = `${modes[result.mode]} · ` + depths.map((depth, index) => `${report.config.nominal_hum_hz * (index + 1)}Hz ${depth}dB${depth === 0 ? ' (끔)' : ''}`).join(' · ');
+        if (!Array.isArray(depths) || depths.length !== 3 || !depths.every(value => Number.isFinite(value) && value >= 0 && value <= 12)) throw new Error('Invalid per-band processing settings response.');
+        $('result-settings').textContent = `${modes[result.mode]} · ` + depths.map((depth, index) => `${report.config.nominal_hum_hz * (index + 1)}Hz ${depth}dB${depth === 0 ? ' (off)' : ''}`).join(' · ');
       } else {
-        const orderLabel = result.mode === 'harmonics' ? ` · ${report.config.orders.join('·')}배 대역` : (isProfile ? ` · ${report.config.orders.length}개 후보 대역` : '');
-        $('result-settings').textContent = `${modes[result.mode]} · ${report.config.nominal_hum_hz}Hz${orderLabel} · 설정 ${report.config.max_attenuation_db}dB`;
+        const orderLabel = result.mode === 'harmonics' ? ` · orders ${report.config.orders.join('·')}` : (isProfile ? ` · ${report.config.orders.length} candidate bands` : '');
+        $('result-settings').textContent = `${modes[result.mode]} · ${report.config.nominal_hum_hz}Hz${orderLabel} · setting ${report.config.max_attenuation_db}dB`;
       }
       const inputRate = report.input.sample_rate_hz;
       const outputRate = report.output.sample_rate_hz;
       const inputChannels = report.input.channels ?? 1;
       const outputChannels = report.output.channels ?? 1;
       if (![inputRate, outputRate].every(value => Number.isInteger(value) && value > 0)
-        || ![inputChannels, outputChannels].every(value => value === 1 || value === 2)) throw new Error('샘플레이트·채널 응답이 올바르지 않습니다.');
+        || ![inputChannels, outputChannels].every(value => value === 1 || value === 2)) throw new Error('Invalid sample-rate or channel response.');
+      if (isPersistent && (![44100,48000].includes(inputRate) || outputRate !== inputRate
+        || outputChannels !== inputChannels || report.output.frames !== report.input.frames
+        || !['signed_PCM16_little_endian','signed_PCM24_little_endian','IEEE_FLOAT32_little_endian'].includes(report.input.sample_format)
+        || report.output.sample_format !== report.input.sample_format)) throw new Error('Persistent input and output native formats or frame counts do not match.');
       if (isCompressed && (report.input.sample_format !== 'IEEE_FLOAT32_little_endian'
         || report.output.sample_format !== 'IEEE_FLOAT32_little_endian'
         || ![44100, 48000].includes(inputRate) || outputRate !== inputRate
-        || outputChannels !== inputChannels || report.output.frames !== report.input.frames)) throw new Error('디코딩 원본·처리 WAV의 형식 또는 길이가 일치하지 않습니다.');
-      $('input-track-title').textContent = isCompressed ? '디코딩 원본' : '원본';
-      $('input-track-description').textContent = isCompressed ? '압축 파일에서 디코딩한 Float32 WAV' : '변경하지 않은 입력';
-      $('output-track-title').textContent = isCompressed ? '처리 WAV' : '처리본';
-      $('input-peak-label').textContent = isCompressed ? '디코딩 원본 피크' : '원본 피크';
-      $('input-waveform').setAttribute('aria-label', isCompressed ? '디코딩 원본 WAV 오디오 파형' : '원본 오디오 파형');
-      audio[0].setAttribute('aria-label', isCompressed ? '디코딩 원본 WAV 수동 재생' : '원본 수동 재생');
+        || outputChannels !== inputChannels || report.output.frames !== report.input.frames)) throw new Error('Decoded input and processed WAV formats or lengths do not match.');
+      $('input-track-title').textContent = isCompressed ? 'Decoded input' : 'Input';
+      $('ab-a').textContent = isCompressed ? 'A · Decoded input' : 'A · input';
+      $('input-track-description').textContent = isCompressed ? 'Float32 WAV decoded from the compressed file' : 'Unmodified input';
+      $('output-track-title').textContent = isCompressed ? 'Processed WAV' : 'Output';
+      $('input-peak-label').textContent = isCompressed ? 'Decoded input peak' : 'Input peak';
+      $('input-waveform').setAttribute('aria-label', isCompressed ? 'Decoded input WAV waveform' : 'Input audio waveform');
+      audio[0].setAttribute('aria-label', isCompressed ? 'Play decoded input WAV manually' : 'Play input manually');
       $('listen-note').textContent = isCompressed
-        ? '낮은 음량부터 직접 재생하세요. A는 압축 파일 자체가 아닌 디코딩 원본 Float32 WAV이며 B도 Float32 WAV입니다. 브라우저가 재생하지 못하면 저장해 오디오 편집기에서 확인하세요. A 또는 B 재생 시 다른 쪽은 멈춥니다.'
-        : '낮은 음량부터 직접 재생하세요. A 또는 B 재생 시 다른 쪽은 멈춥니다. 브라우저 재생은 출력 장치의 영향을 받으며, 원본 파일의 수치 평가와는 다릅니다.';
-      $('duration-stat').textContent = `${(report.input.frames / inputRate).toFixed(2)} 초`;
-      $('format-stat').textContent = `${isCompressed ? '디코딩 원본' : '원본'} ${formatRate(inputRate)} · ${formatChannels(inputChannels)} · ${formatSamples(report.input)} → ${isCompressed ? '처리 WAV' : '처리본'} ${formatRate(outputRate)} · ${formatChannels(outputChannels)} · ${formatSamples(report.output)}`;
+        ? 'Start playback yourself at a low listening level. A is the decoded input Float32 WAV, not the compressed file; B is also Float32 WAV. If the browser cannot play them, save the files and use an audio editor. Playing A or B stops the other track.'
+        : 'Start playback yourself at a low listening level. Playing A or B stops the other track. Browser playback depends on the output device and is separate from numerical evaluation of the source files.';
+      $('duration-stat').textContent = `${(report.input.frames / inputRate).toFixed(2)} s`;
+      $('format-stat').textContent = `${isCompressed ? 'Decoded input' : 'Input'} ${formatRate(inputRate)} · ${formatChannels(inputChannels)} · ${formatSamples(report.input)} → ${isCompressed ? 'Processed WAV' : 'Output'} ${formatRate(outputRate)} · ${formatChannels(outputChannels)} · ${formatSamples(report.output)}`;
       $('input-peak').textContent = report.input.peak_abs.toFixed(4);
       $('output-peak').textContent = report.output.peak_abs.toFixed(4);
-      $('elapsed-stat').textContent = `${report.timing.file_processing_seconds.toFixed(2)} 초`;
+      $('elapsed-stat').textContent = `${report.timing.file_processing_seconds.toFixed(2)} s`;
       $('report-json').textContent = JSON.stringify(report, null, 2);
       lastReport = report;
       lastReviewContext = {name: sourceName, example: isExample, mode, content_identity: 'see_embedded_processing_report_not_a_listening_attestation'};
-      lastWaveforms = result.waveforms;
+      lastWaveforms = waveforms;
       lastChannels = inputChannels;
       $('results').hidden = false;
+      abReview?.setPair({input: report.input, output: report.output});
       drawWaveforms();
-      $('result-state').textContent = '처리 완료';
+      $('result-state').textContent = 'Complete';
       $('result-state').className = 'state-label';
       $('status').textContent = isStoredFile
-        ? `${modes[mode]} 처리를 마쳤습니다. 새 긴 WAV·고해상도 WAV·MP3/M4A 작업이나 처리기 정상 종료 전에 필요한 파일을 저장하세요. 강제 종료 시 임시 사본이 남을 수 있습니다. 음질 판정은 아닙니다.`
-        : (isProfile ? '실험 결과를 만들었습니다. 대역별 적용·보류와 직접 지정한 잡음 구간을 확인하고 직접 비교하세요. 자동 음질 판정은 아닙니다.' : '새 처리본을 만들었습니다. 직접 듣고 비교하거나 파일로 저장하세요. 음질 판정은 아닙니다.');
+        ? `${modes[mode]} processing complete. Save the files you need before starting another stored-file job (Long WAV, High-resolution WAV, MP3/M4A or Persistent hum), or before a normal processor shutdown. Temporary copies may remain after forced termination. This is not an audio-quality assessment.`
+        : (isProfile ? 'Experimental result created. Inspect applied/withheld bands and your declared noise-only interval, then compare by listening. This is not an automatic quality assessment.' : 'A new processed result is ready. Listen and compare, or save the files. This is not an audio-quality assessment.');
       if (isProfile && isExample) {
         // An assertion about a known synthetic fixture never carries over to a user's upload.
         resetProfileDeclaration();
-        $('status').textContent += ' 예제 확인은 내 파일로 이어지지 않도록 구간과 체크를 비웠습니다.';
+        $('status').textContent += ' The example interval and confirmation were cleared so they cannot carry over to your own file.';
       }
     } catch (error) {
       clearResult();
       showError(error.name === 'AbortError'
-        ? '응답 대기 시간이 끝났습니다. 서버 처리는 아직 진행 중일 수 있습니다. 잠시 후 더 짧은 파일로 다시 시도해 주세요.'
-        : (error instanceof TypeError ? '로컬 처리기에 연결하지 못했습니다. 실행 창이 열려 있는지 확인해 주세요.' : (error.message || '처리 결과를 읽지 못했습니다. 다시 실행해 주세요.')));
+        ? 'The response timed out. Server processing may still be running. Wait a moment, then try a shorter file.'
+        : (error instanceof TypeError ? 'Could not connect to the local processor. Check that its launcher window is still open.' : (error.message || 'Could not read the processing result. Try again.')));
     } finally {
       clearTimeout(timer);
       busy = false;
+      updateSettingsControls();
       updateDesktopControls();
       $('settings-fields').disabled = false;
       $('process-button').disabled = !selectedFile;
+      updateFilePreflight();
       $('busy-state').hidden = true;
       if (isProfile && isExample) resetProfileDeclaration();
       updateListeningReview();
@@ -645,7 +813,7 @@
   }
   $('processor-form').addEventListener('submit', (event) => { event.preventDefault(); void run(false); });
   $('example-button').addEventListener('click', () => { void run(true); });
-  window.addEventListener('beforeunload', () => { for (const url of urls) URL.revokeObjectURL(url); });
+  window.addEventListener('beforeunload', () => { fileCheckSerial += 1; if (fileCheckTimer !== null) clearTimeout(fileCheckTimer); abReview?.suspend(); for (const url of urls) URL.revokeObjectURL(url); });
   updateSettingsControls();
   void loadCapabilities();
 })();

@@ -213,7 +213,7 @@ def process_request(handler, parsed):
             "schema_version": 1, "mode": mode, "transport": "loopback_streamed_files_no_base64",
             "microphone_capture": False, "autoplay": False, "remote_upload": False,
             "temporary_result_retained_until_next_long_job_or_server_close": True,
-            "temporary_result_replacement_modes": ["long", "precision", "compressed"],
+            "temporary_result_replacement_modes": ["long", "precision", "compressed", "persistent"],
             "temporary_files_removed_before_response": False,
             "waveform_channel_policy": "per_time_bin_extrema_across_channels_no_signed_downmix",
             "asset_urls": "unguessable_local_session_capabilities_not_remote_authentication",

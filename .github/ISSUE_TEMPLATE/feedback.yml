@@ -11,7 +11,7 @@ body:
     id: version
     attributes:
       label: Version and installation
-      placeholder: v0.0.14, Windows portable or source install
+      placeholder: v0.0.15, Windows portable or source install
     validations:
       required: true
   - type: input
