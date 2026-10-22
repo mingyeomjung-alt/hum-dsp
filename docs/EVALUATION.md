@@ -83,8 +83,14 @@ Windows host cannot create the required symlink. The command was
 `python -m pytest -q tests`, with a fresh temporary directory and local-loopback
 network permission. No audio was played or recorded. The same public suite is
 configured for Windows and Ubuntu CI; passing those jobs must be checked on
-GitHub rather than inferred from this Windows run. CI does not install PyAV,
-so optional codec tests skip there.
+GitHub rather than inferred from this Windows run. The initial Ubuntu CI run
+found that the full developer-test dependency list omitted PyAV even though
+some codec/research contracts require it (19 failures, 2,681 passes and 29
+skips). The corrected `[test]` extra explicitly installs PyAV 19.x. This fixes
+the test environment rather than suppressing failures or changing the DSP
+kernel. Normal WAV use still requires NumPy only; users who do not run the
+developer suite need not install the optional decoder. The corrected CI run
+must pass separately; the initial run is retained in GitHub's history.
 
 A locally built, pure-Python wheel was checked for exact equality of all **73**
 runtime Python/policy/web files, packaged H2c/H2d policies and UI assets,

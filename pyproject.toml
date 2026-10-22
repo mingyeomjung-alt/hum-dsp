@@ -15,7 +15,7 @@ dependencies = ["numpy>=2,<3"]
 [project.optional-dependencies]
 compressed = ["av>=19,<20"]
 build = ["pyinstaller==6.22.3"]
-test = ["pytest>=8,<10", "scipy>=1.14,<2"]
+test = ["pytest>=8,<10", "scipy>=1.14,<2", "av>=19,<20"]
 
 [project.scripts]
 hum-dsp = "hum_dsp.cli:main"

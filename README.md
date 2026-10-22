@@ -13,7 +13,7 @@ require separate permission. This is source-available, not open source.** See
 ### Source: Windows, Linux or macOS with Python 3.12+
 
 Download this repository or the source archive from the
-[v0.0.14 evaluation release](https://github.com/mingyeomjung-alt/hum-dsp/releases/tag/v0.0.14-evaluation).
+[v0.0.14 evaluation release](https://github.com/mingyeomjung-alt/hum-dsp/releases/tag/v0.0.14-evaluation.1).
 Extract it and open a terminal in its directory. On Windows PowerShell:
 
 ```powershell
@@ -85,8 +85,9 @@ hum isolated in the quieter channel may be missed. No output normalization or
 dithering is applied.
 
 MP3/AAC-M4A is an **optional source-only** feature requiring a separately
-installed compatible PyAV 19.x decoder. It is not needed for the WAV demo or
-tests. Codec binary distribution/patent rights are not represented as cleared;
+installed compatible PyAV 19.x decoder. It is not needed for normal WAV use or
+the WAV demo. The full developer test extra installs PyAV 19.x to exercise the
+codec and decoder-availability contracts. Codec binary distribution/patent rights are not represented as cleared;
 this repository does not distribute those binaries. See
 [third-party notes](docs/THIRD_PARTY.md).
 
@@ -138,6 +139,9 @@ sensitive audio. See [security notes](SECURITY.md).
 python -m pip install -e ".[test]"
 python -m pytest -q
 ```
+
+The `[test]` extra installs pytest, SciPy and PyAV 19.x for the full test suite.
+The base WAV application still requires only NumPy beyond Python itself.
 
 Node.js is optional for executable UI-contract tests; those tests are skipped
 when Node is absent. HTTP tests start only loopback listeners and do not play
