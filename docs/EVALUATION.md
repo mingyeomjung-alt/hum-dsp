@@ -92,6 +92,13 @@ kernel. Normal WAV use still requires NumPy only; users who do not run the
 developer suite need not install the optional decoder. The corrected CI run
 must pass separately; the initial run is retained in GitHub's history.
 
+After the dependency correction, Ubuntu passed the full suite. Windows then
+exposed checkout-time LF-to-CRLF conversion in a frozen source-SHA256 contract
+(2,728 passes and one hash-check failure). The repository now declares
+`* -text` in `.gitattributes` to preserve exact file bytes on checkout. No
+source hashes, numerical policies or engine code were changed to hide that
+failure. Both platforms must validate the corrected commit separately.
+
 A locally built, pure-Python wheel was checked for exact equality of all **73**
 runtime Python/policy/web files, packaged H2c/H2d policies and UI assets,
 isolated import, and native profile bypass behavior. No source kernel was
